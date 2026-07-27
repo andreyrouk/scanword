@@ -149,7 +149,13 @@ function renderPuzzle(p) {
   });
 
   gridEl.innerHTML = "";
-  gridEl.style.gridTemplateColumns = `repeat(${p.cols}, minmax(${cellMinSize(p.cols)}px, ${cellMaxSize(p.cols)}px))`;
+  // Columns and rows both get the exact same fixed size, so every cell is
+  // a perfect square no matter how much text a clue cell holds - content
+  // that doesn't fit scales down or clips (see .clue-text in style.css)
+  // rather than stretching the cell.
+  const cellSize = cellSizePx(p.rows, p.cols);
+  gridEl.style.gridTemplateColumns = `repeat(${p.cols}, ${cellSize}px)`;
+  gridEl.style.gridAutoRows = `${cellSize}px`;
 
   for (let r = 0; r < p.rows; r++) {
     for (let c = 0; c < p.cols; c++) {
@@ -157,25 +163,34 @@ function renderPuzzle(p) {
       const div = document.createElement("div");
 
       if (p.isClue[r][c]) {
-        // Every clue cell the generator produces is guaranteed to serve at
-        // least one real word (see grid-skeleton.js) - there's no filler,
-        // no title cell, and nothing left undefined here.
         const entries = p.clueCells.get(r + "," + c);
-        div.className = "cell clue" + (entries.length > 1 ? " dual" : "");
-        entries.forEach((entry) => {
-          const block = document.createElement("div");
-          block.className = "clue-block";
-          const text = document.createElement("span");
-          text.className = "clue-text";
-          text.textContent = entry.text;
-          const arrow = document.createElement("span");
-          arrow.className = "arrow";
-          arrow.textContent = entry.dir === "down" ? "↓" : "→";
-          block.appendChild(text);
-          block.appendChild(arrow);
-          block.addEventListener("click", () => selectWord(entry.wordId, true));
-          div.appendChild(block);
-        });
+        if (!entries) {
+          // Occasionally a clue cell doesn't end up serving any word (see
+          // grid-skeleton.js) - render it as a small deliberate mark, not
+          // a solid block, so it never reads as a forbidden black/blocked
+          // square.
+          div.className = "cell deco-empty";
+          const dot = document.createElement("span");
+          dot.className = "deco-dot";
+          dot.textContent = "•";
+          div.appendChild(dot);
+        } else {
+          div.className = "cell clue" + (entries.length > 1 ? " dual" : "");
+          entries.forEach((entry) => {
+            const block = document.createElement("div");
+            block.className = "clue-block";
+            const text = document.createElement("span");
+            text.className = "clue-text";
+            text.textContent = entry.text;
+            const arrow = document.createElement("span");
+            arrow.className = "arrow";
+            arrow.textContent = entry.dir === "down" ? "↓" : "→";
+            block.appendChild(text);
+            block.appendChild(arrow);
+            block.addEventListener("click", () => selectWord(entry.wordId, true));
+            div.appendChild(block);
+          });
+        }
       } else {
         div.className = "cell letter";
         const input = document.createElement("input");
@@ -197,15 +212,14 @@ function renderPuzzle(p) {
   if (p.words.length) selectWord(p.words[0].id, true);
 }
 
-function cellMinSize(cols) {
-  if (cols <= 8) return 52;
-  if (cols <= 14) return 40;
-  return 32;
-}
-function cellMaxSize(cols) {
-  if (cols <= 8) return 78;
-  if (cols <= 14) return 62;
-  return 48;
+// A single fixed square size for every cell: large enough to read
+// comfortably at small grid sizes, shrinking as needed so bigger grids
+// still fit the viewport without scrolling sideways.
+function cellSizePx(rows, cols) {
+  const dim = Math.max(rows, cols);
+  const idealByCount = dim <= 8 ? 68 : dim <= 14 ? 48 : 36;
+  const viewportCap = Math.floor((Math.min(window.innerWidth, 900) - 32) / cols);
+  return Math.max(24, Math.min(idealByCount, viewportCap));
 }
 
 function setStatus(text) {
