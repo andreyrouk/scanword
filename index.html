@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Сканворд</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div class="header">
+    <div class="eyebrow">Сканворд · українською</div>
+    <h1>Сканворд</h1>
+    <p class="sub">Кожна клітинка — підказка або літера. Клікни на підказку, щоб перейти до слова, або на літеру, щоб почати вписувати відповідь.</p>
+    <div class="stitch"></div>
+  </div>
+
+  <div class="settings">
+    <label>Рядків <input type="number" id="rowsInput" value="5" min="5" max="30"></label>
+    <label>Колонок <input type="number" id="colsInput" value="5" min="5" max="30"></label>
+    <button class="btn-primary" id="generateBtn">Згенерувати</button>
+  </div>
+
+  <div class="grid-wrap">
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn-primary" id="checkBtn">Перевірити</button>
+    <button class="btn-ghost" id="resetBtn">Спочатку</button>
+  </div>
+  <div class="status" id="status"></div>
+
+  <script src="data/dictionary.js"></script>
+  <script src="js/grid-skeleton.js"></script>
+  <script src="js/word-filler.js"></script>
+  <script src="js/generator.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
