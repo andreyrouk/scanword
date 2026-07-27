@@ -28,11 +28,11 @@ Pages → Source: `main` branch, `/ (root)`.
   only (no apostrophes/hyphens/spaces, since each cell holds one
   character); `clue` is a short definition that doesn't reuse the word.
 - `js/grid-skeleton.js` - decides, for a given grid size, which cells are
-  clue cells and which are letters, with every row/column split into
-  word-length runs and no black cells anywhere. This is randomized
-  generate-and-validate: build a candidate layout, reject it if it has an
-  orphan letter (part of no word) or a dead interior clue cell (points at
-  nothing), retry with a new random layout otherwise.
+  clue cells and which are letters. This is a real constraint solver
+  (backtracking with pruning), not generate-and-hope: every single cell is
+  guaranteed to end up either the clue for a real word or a letter inside
+  one - no black cells, no filler, no cell (not even the corner) that
+  renders with nothing in it. A valid layout is *found*, not gambled on.
 - `js/word-filler.js` - assigns dictionary words to the grid's word slots
   via backtracking search with a minimum-remaining-values heuristic
   (always fill in whichever slot currently has the fewest matching
@@ -46,25 +46,33 @@ Pages → Source: `main` branch, `/ (root)`.
   typing fills a letter and advances, skipping over already-locked
   cells; completing a word correctly locks it.
 
-## Known limitation: dictionary size vs. grid size
+## Known limitation: performance and crossing density at larger sizes
 
-How many *distinct* words a grid needs - and how many of them must share
-the exact same length while all crossing each other - grows much faster
-than grid area. A 5x5 or 6x5 grid reliably generates in well under a
-second with the current dictionary. Bigger grids (8x8 and up) need enough
-words of matching lengths to satisfy many simultaneous crossings, and
-will sometimes fail to generate within the time budget until the
-dictionary is larger. `js/generator.js` gives up gracefully (time-budgeted
-retries, then a clear on-screen message) rather than hanging - so this
-shows up as "try a smaller grid," not a crash.
+Two related things get harder fast as grid area grows, independent of
+each other:
 
-There's also a rarer cosmetic case: the generator can occasionally leave a
-border clue cell unused by any word. Rather than force every grid into a
-much harder shape to eliminate this, those cells render as a small sage
-ornament (part of the paper-frame design) rather than a solid block, so
-they never look like a forbidden black/blocked square.
+- **Finding a valid, fully-tiled shape at all.** The skeleton search in
+  `js/grid-skeleton.js` is exhaustive-with-pruning, and the space it's
+  searching grows exponentially with cell count. 5x5 and 6x5 grids solve
+  in well under a second; 6x6 can take several seconds; much beyond that
+  and it needs real algorithmic work (better pruning, or a fundamentally
+  smarter search) to stay fast. `js/generator.js` runs this within a wall-
+  clock budget and fails gracefully with an on-screen message rather than
+  hanging, so this shows up as "try a smaller grid," not a crash.
+- **How densely words cross.** A layout can be perfectly valid (zero
+  waste) while still having most words sit side-by-side rather than
+  interlocking - real scanwords interlock much more. `generatePuzzle`
+  samples a few valid layouts and keeps the most densely-crossed one, but
+  for small grids there's a hard ceiling on how much crossing is even
+  possible (there's provably no 100%-crossing layout for a 5x5 grid under
+  these rules, for instance) - it takes a bigger grid to get the dense,
+  reference-photo look.
+- **Word/clue count vs. dictionary size**, as before: many simultaneous
+  same-length crossings need many candidate words to satisfy them all at
+  once.
 
-Both of these get less noticeable as the dictionary grows.
+All three get better with a bigger dictionary and more algorithm work -
+neither is a correctness problem, both are "the next thing to improve."
 
 ## Roadmap
 

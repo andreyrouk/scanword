@@ -157,43 +157,25 @@ function renderPuzzle(p) {
       const div = document.createElement("div");
 
       if (p.isClue[r][c]) {
+        // Every clue cell the generator produces is guaranteed to serve at
+        // least one real word (see grid-skeleton.js) - there's no filler,
+        // no title cell, and nothing left undefined here.
         const entries = p.clueCells.get(r + "," + c);
-        if (!entries) {
-          // The generator can occasionally leave a border clue cell
-          // unused by any word (see grid-skeleton.js). Render it as a
-          // deliberate part of the paper-frame design - a small ornament,
-          // never a solid block - so it never reads as a forbidden
-          // black/blocked square.
-          if (r === 0 && c === 0) {
-            div.className = "cell deco";
-            const t = document.createElement("div");
-            t.className = "deco-title";
-            t.textContent = "СКАНВОРД";
-            div.appendChild(t);
-          } else {
-            div.className = "cell deco-empty";
-            const dot = document.createElement("span");
-            dot.className = "deco-dot";
-            dot.textContent = "•";
-            div.appendChild(dot);
-          }
-        } else {
-          div.className = "cell clue" + (entries.length > 1 ? " dual" : "");
-          entries.forEach((entry) => {
-            const block = document.createElement("div");
-            block.className = "clue-block";
-            const text = document.createElement("span");
-            text.className = "clue-text";
-            text.textContent = entry.text;
-            const arrow = document.createElement("span");
-            arrow.className = "arrow";
-            arrow.textContent = entry.dir === "down" ? "↓" : "→";
-            block.appendChild(text);
-            block.appendChild(arrow);
-            block.addEventListener("click", () => selectWord(entry.wordId, true));
-            div.appendChild(block);
-          });
-        }
+        div.className = "cell clue" + (entries.length > 1 ? " dual" : "");
+        entries.forEach((entry) => {
+          const block = document.createElement("div");
+          block.className = "clue-block";
+          const text = document.createElement("span");
+          text.className = "clue-text";
+          text.textContent = entry.text;
+          const arrow = document.createElement("span");
+          arrow.className = "arrow";
+          arrow.textContent = entry.dir === "down" ? "↓" : "→";
+          block.appendChild(text);
+          block.appendChild(arrow);
+          block.addEventListener("click", () => selectWord(entry.wordId, true));
+          div.appendChild(block);
+        });
       } else {
         div.className = "cell letter";
         const input = document.createElement("input");
@@ -236,13 +218,13 @@ async function runGenerate() {
   rowsInput.value = rows;
   colsInput.value = cols;
 
-  setStatus("Генерую сітку…");
+  setStatus("Генерую сітку… (для великих сіток це може зайняти кілька секунд)");
   gridEl.innerHTML = "";
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  const result = generatePuzzle(rows, cols, DICTIONARY);
+  const result = generatePuzzle(rows, cols, DICTIONARY, { timeBudgetMs: 15000 });
   if (!result) {
-    setStatus("Не вдалося згенерувати сітку такого розміру. Спробуйте менший розмір або дочекайтесь поповнення словника.");
+    setStatus("Не вдалося згенерувати сітку такого розміру. Спробуйте менший розмір.");
     return;
   }
   renderPuzzle(result);
