@@ -27,17 +27,17 @@ Pages → Source: `main` branch, `/ (root)`.
   few hundred entries. `word` is uppercase Cyrillic letters only (no
   apostrophes/hyphens/spaces, since each cell holds one character);
   `clue` is a short definition that doesn't reuse the word.
-- `js/grid-skeleton.js` - decides, for a given grid size, which cells are
-  clues and which are letters. The one rule that actually matters: a run
-  of letter cells is either a short stub (fine, no clue needed - relies
-  on the crossing word instead) or a real word with a clue directly
-  before it. A run starting at the grid's own edge (row 0 / column 0) can
-  never have a clue there, so it can only ever be a stub - **never** a
-  long, real-looking run with nothing spelling it out. That's the one
-  thing a real scanword never does, and it's enforced everywhere, not
-  just at the edges. Generation is randomized generate-and-validate:
-  build a layout, keep it if every letter cell has a real word in some
-  direction, retry otherwise.
+- `js/grid-skeleton.js` - decides which cells are clues and which are
+  letters, and which clue explains which word. Key insight (borrowed
+  from print scanwords): a clue does not have to sit directly before its
+  word - it sits in any cell adjacent to the word's first letter, with a
+  possibly-bent arrow (→ ↓ ↳ ✴︎⬎) showing where the word starts and which
+  way it runs. Construction is word-first backtracking: scanning the
+  grid, every uncovered cell becomes a clue that grows 1-2 words out of
+  itself, with full undo when a branch dead-ends. Every letter belongs
+  to a word, every clue explains 1-2 words, no cell is wasted, and no
+  run of letters ever exists without being a real clued word - all hard
+  guarantees, re-audited independently after generation.
 - `js/word-filler.js` - assigns dictionary words to the grid's word slots
   via backtracking with a minimum-remaining-values heuristic (always fill
   in whichever slot currently has the fewest matching candidates next),
@@ -53,20 +53,13 @@ Pages → Source: `main` branch, `/ (root)`.
   cell with a lot of text clips/scales down rather than stretching the
   row.
 
-## Known trade-off: occasional unused clue cells
+## Current limits
 
-Requiring *every* clue cell to serve a real word - on top of never
-letting a long run go unclued - turns out to make grid generation
-dramatically harder to find quickly (verified by exhaustive search: for
-several grid sizes there is no such layout with a clue-starved corner
-guaranteed used, and reliably constructing one needs real algorithmic
-work well beyond a generate-and-check search). Rather than block on that,
-a clue cell occasionally ends up not attached to any word. It renders as
-a small dot - deliberately not a solid block, so it never reads as a
-forbidden black/blocked square - not as blank filler pretending to be
-useful. The unclued-long-run bug (real gibberish, cells that look exactly
-like a word but spell nothing) is fully fixed; this is a narrower,
-purely cosmetic gap that shrinks as the generator improves.
+With the ~1,100-word dictionary, 5x5 and 6x6 generate reliably (seconds).
+Larger grids produce valid *shapes* fine, but their dense interlock needs
+far more same-length crossing candidates than the dictionary has - fills
+start failing around 7x6. The UI caps sizes at the reliable envelope; the
+cap moves up as the dictionary grows toward ~10,000 entries.
 
 ## Roadmap
 

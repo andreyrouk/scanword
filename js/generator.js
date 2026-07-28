@@ -9,16 +9,17 @@ function buildPuzzleModel(rows, cols, isClue, slots, fillResult) {
       dir: slot.dir,
       cells: slot.cells,
       clueCell: slot.clueCell,
+      arrow: slot.arrow,
       answer: entry.word,
       clue: entry.clue,
     };
   });
 
-  const clueCells = new Map(); // "r,c" -> [{ dir, text, wordId }]
+  const clueCells = new Map(); // "r,c" -> [{ dir, text, wordId, arrow }]
   words.forEach((w) => {
     const k = w.clueCell[0] + "," + w.clueCell[1];
     if (!clueCells.has(k)) clueCells.set(k, []);
-    clueCells.get(k).push({ dir: w.dir, text: w.clue, wordId: w.id });
+    clueCells.get(k).push({ dir: w.dir, text: w.clue, wordId: w.id, arrow: w.arrow });
   });
 
   // In a dual-purpose clue cell, show the across (row) clue above the down
@@ -38,7 +39,9 @@ function buildPuzzleModel(rows, cols, isClue, slots, fillResult) {
 // max word length scales with grid size instead of staying fixed.
 function generatePuzzle(rows, cols, dictionary, { timeBudgetMs = 8000, fillAttemptsPerSkeleton = 4 } = {}) {
   const deadline = Date.now() + timeBudgetMs;
-  const maxWordLen = Math.max(3, Math.min(15, Math.max(rows, cols)));
+  // Cap word length by what the dictionary can actually serve (it thins
+  // out fast past 9 letters), not just by grid size.
+  const maxWordLen = Math.max(3, Math.min(9, Math.max(rows, cols)));
 
   while (Date.now() < deadline) {
     const skeleton = generateSkeleton(rows, cols, { maxWordLen });

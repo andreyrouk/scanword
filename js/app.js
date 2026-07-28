@@ -182,13 +182,17 @@ function renderPuzzle(p) {
             const text = document.createElement("span");
             text.className = "clue-text";
             text.textContent = entry.text;
-            const arrow = document.createElement("span");
-            arrow.className = "arrow";
-            arrow.textContent = entry.dir === "down" ? "↓" : "→";
             block.appendChild(text);
-            block.appendChild(arrow);
             block.addEventListener("click", () => selectWord(entry.wordId, true));
             div.appendChild(block);
+            // The arrow sits on the cell's edge facing the word's first
+            // letter (possibly bent - see ARROWS in grid-skeleton.js),
+            // overlapping into the neighbor cell like in print scanwords.
+            const arrow = document.createElement("span");
+            arrow.className =
+              `arrow arrow-${entry.arrow.edge} arrow-${entry.dir}` + (entry.arrow.flip ? " arrow-flip" : "");
+            arrow.textContent = entry.arrow.glyph;
+            div.appendChild(arrow);
           });
         }
       } else {
@@ -227,8 +231,8 @@ function setStatus(text) {
 }
 
 async function runGenerate() {
-  const rows = Math.max(5, Math.min(30, parseInt(rowsInput.value, 10) || 5));
-  const cols = Math.max(5, Math.min(30, parseInt(colsInput.value, 10) || 5));
+  const rows = Math.max(5, Math.min(6, parseInt(rowsInput.value, 10) || 6));
+  const cols = Math.max(5, Math.min(6, parseInt(colsInput.value, 10) || 6));
   rowsInput.value = rows;
   colsInput.value = cols;
 
@@ -236,7 +240,7 @@ async function runGenerate() {
   gridEl.innerHTML = "";
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  const result = generatePuzzle(rows, cols, DICTIONARY, { timeBudgetMs: 15000 });
+  const result = generatePuzzle(rows, cols, DICTIONARY, { timeBudgetMs: 25000 });
   if (!result) {
     setStatus("Не вдалося згенерувати сітку такого розміру. Спробуйте менший розмір.");
     return;
