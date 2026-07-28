@@ -229,19 +229,41 @@ function renderPuzzle(p) {
 // clue is never cut off - and never widens the cell to make room. Runs
 // once per render (and on resize, since the fit depends on cell size).
 function fitClueText() {
-  const MAX_PX = 11;
-  const MIN_PX = 4;
+  const cellSize = puzzle ? cellSizePx(puzzle.rows, puzzle.cols) : 60;
+  // Start from a size proportional to the cell, so small cells don't
+  // begin far too large and burn iterations getting back down.
+  const maxPx = Math.max(6, Math.min(11, Math.round(cellSize * 0.17)));
+  const minPx = 4;
   gridEl.querySelectorAll(".clue-block").forEach((block) => {
     const text = block.querySelector(".clue-text");
     if (!text) return;
-    let size = MAX_PX;
-    text.style.fontSize = size + "px";
-    while (
-      size > MIN_PX &&
-      (text.scrollHeight > block.clientHeight || text.scrollWidth > block.clientWidth)
-    ) {
-      size -= 0.25;
+    // Measure the text element's own box: it is the one that clips
+    // (overflow:hidden + max-height), so scrollHeight > clientHeight is
+    // exactly "some of this clue is cut off". Comparing against the
+    // parent block instead misses the vertical-centering overhang.
+    const clipped = () =>
+      text.scrollHeight > text.clientHeight + 0.5 ||
+      text.scrollWidth > text.clientWidth + 0.5 ||
+      text.scrollHeight > block.clientHeight + 0.5;
+
+    const shrinkToFit = () => {
+      let size = maxPx;
       text.style.fontSize = size + "px";
+      while (size > minPx && clipped()) {
+        size -= 0.5;
+        text.style.fontSize = size + "px";
+      }
+      return !clipped();
+    };
+
+    // Prefer wrapping at spaces: try the whole range with words kept
+    // whole first, and only allow mid-word breaks if even the smallest
+    // size can't fit that way. Splitting "фруктовими" across lines is
+    // much harder to read than one step smaller type.
+    text.style.overflowWrap = "normal";
+    if (!shrinkToFit()) {
+      text.style.overflowWrap = "break-word";
+      shrinkToFit();
     }
   });
 }

@@ -13,6 +13,16 @@
 
 * { box-sizing: border-box; }
 
+/* Chrome on Android "boosts" font sizes in text blocks to make them
+   easier to read, overriding the px sizes fitClueText() computes - which
+   made clue text overflow its cell on phones. Opt out: the clue sizing
+   is already computed per cell. */
+html {
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   padding: 24px 16px 56px;
@@ -81,6 +91,11 @@ h1 { font-weight: 700; font-size: 26px; margin: 0 0 8px; }
   display: flex;
   flex-direction: column;
   justify-content: center;
+  /* Must override .cell's align-items:center - in a column flex that is
+     the *horizontal* alignment, which sizes each clue block to its own
+     content and lets a long clue overhang both sides of the cell.
+     Stretch pins every block to the cell width instead. */
+  align-items: stretch;
   gap: 1px;
   overflow: visible; /* arrows poke out over the neighboring letter cell */
   z-index: 1;
@@ -94,7 +109,7 @@ h1 { font-weight: 700; font-size: 26px; margin: 0 0 8px; }
   align-items: center;
   color: var(--ink);
   text-align: left;
-  padding: 0 1px;
+  padding: 0 3px;
   cursor: pointer;
   overflow: hidden;
 }
@@ -113,6 +128,11 @@ h1 { font-weight: 700; font-size: 26px; margin: 0 0 8px; }
      fit a line on its own - otherwise fitClueText shrinks the font and
      the text wraps at spaces, the way it reads naturally. */
   overflow-wrap: break-word;
+  /* The cell itself must stay overflow:visible so arrows can sit on its
+     edge, so the text has to do its own clipping - otherwise an
+     unexpectedly large glyph run would spill across neighbouring cells. */
+  overflow: hidden;
+  max-height: 100%;
 }
 
 /* Arrows sit on the clue cell's edge facing the word's first letter,
