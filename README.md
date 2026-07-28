@@ -61,6 +61,36 @@ far more same-length crossing candidates than the dictionary has - fills
 start failing around 7x6. The UI caps sizes at the reliable envelope; the
 cap moves up as the dictionary grows toward ~10,000 entries.
 
+## Building a bigger dictionary
+
+`tools/` holds the word-list pipeline. It is source-agnostic in shape but
+currently wired to a frequency list:
+
+```
+node tools/fetch-wordlist.mjs    # downloads the raw frequency list
+node tools/build-wordlist.mjs    # filters + ranks -> data/wordlist-candidates.json
+```
+
+**Why this source.** The best Ukrainian lexical resource is VESUM
+(`brown-uk/dict_uk`), but its data is **CC BY-NC-SA - NonCommercial**, so
+it cannot be used in a paid app. Nearly every other Ukrainian dictionary
+(including the LibreOffice/hunspell one) derives from it and inherits that
+restriction. The pipeline therefore uses `hermitdave/FrequencyWords`
+(MIT), where the data are corpus-derived frequency counts.
+
+**What it produces.** ~33k candidates; lengths 4-9 each clear the ~2,000
+target, length 3 tops out around 1,100 (Ukrainian simply has few short
+common nouns - the generator has to lean away from 3-letter slots).
+
+**What it cannot do.** It yields a *candidate pool*, not a word list. Two
+limits are measured, not assumed: the corpus is heavily polluted with
+Russian, and shape rules alone cannot identify nouns. Excluding everything
+that also appears in a Russian list is not viable - 36% of the curated
+Ukrainian nouns appear there too, as genuine cognates. Both problems are
+trivial for the clue-writing pass to settle, so that is where they are
+resolved: one pass per batch that answers "is this a Ukrainian noun?" and,
+if so, writes the clue - then human review.
+
 ## Roadmap
 
 - Grow `data/dictionary.js` toward ~10,000 entries, which unlocks bigger,
