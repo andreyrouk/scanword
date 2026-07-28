@@ -91,6 +91,31 @@ trivial for the clue-writing pass to settle, so that is where they are
 resolved: one pass per batch that answers "is this a Ukrainian noun?" and,
 if so, writes the clue - then human review.
 
+## Viewing and adding words
+
+The dictionary lives in `data/dictionary.js`. For reading or editing it,
+`data/dictionary.csv` is the friendlier view - GitHub renders it as a
+sortable table and it opens directly in Excel / Sheets / Numbers.
+
+```
+node tools/export-dictionary.mjs          # dictionary.js -> dictionary.csv
+node tools/import-words.mjs mine.csv      # merge a file in
+node tools/import-words.mjs mine.csv --dry-run   # validate without writing
+```
+
+`import-words.mjs` accepts one entry per line as `word<SEP>clue`, where
+the separator can be a tab, semicolon, pipe, em-dash, or comma; quoted CSV
+is parsed properly, so an exported file can be edited and fed straight
+back. It validates every row and reports rejects with a reason rather than
+dropping them silently:
+
+- word must be Ukrainian letters only - no spaces, apostrophes or hyphens
+  (a grid cell holds exactly one letter, so "М\'ЯЧ" can never be an answer)
+- 3-12 letters
+- clue must not contain its own answer or an obvious stem of it
+- clue at most 70 characters - longer ones shrink to unreadable type
+- no duplicates, within the file or against the existing dictionary
+
 ## Roadmap
 
 - Grow `data/dictionary.js` toward ~10,000 entries, which unlocks bigger,
