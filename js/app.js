@@ -246,11 +246,29 @@ function fitClueText() {
   });
 }
 
+// Resizes cells and refits clue text in place. Deliberately does NOT
+// rebuild the grid: a rebuild would wipe entered letters, drop solved
+// words and reset the selection.
+function relayoutGrid() {
+  if (!puzzle) return;
+  const cellSize = cellSizePx(puzzle.rows, puzzle.cols);
+  gridEl.style.gridTemplateColumns = `repeat(${puzzle.cols}, ${cellSize}px)`;
+  gridEl.style.gridAutoRows = `${cellSize}px`;
+  fitClueText();
+}
+
+let lastLayoutWidth = window.innerWidth;
 let resizeTimer = null;
 window.addEventListener("resize", () => {
   if (!puzzle) return;
+  // On a phone, focusing a cell opens the on-screen keyboard, which fires
+  // resize with a shorter viewport - height changes, width doesn't. Only
+  // a real width change affects cell size, so ignore the rest and never
+  // disturb the grid while someone is typing into it.
+  if (window.innerWidth === lastLayoutWidth) return;
+  lastLayoutWidth = window.innerWidth;
   clearTimeout(resizeTimer);
-  resizeTimer = setTimeout(() => renderPuzzle(puzzle), 150);
+  resizeTimer = setTimeout(relayoutGrid, 150);
 });
 
 // A single fixed square size for every cell: large enough to read
