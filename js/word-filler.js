@@ -19,7 +19,7 @@ function shuffle(arr) {
   return a;
 }
 
-function fillSlots(slots, dictionary, { nodeBudget = 20000 } = {}) {
+function fillSlots(slots, dictionary, { nodeBudget = 4000 } = {}) {
   const byLength = new Map();
   dictionary.forEach((entry) => {
     const len = entry.word.length;

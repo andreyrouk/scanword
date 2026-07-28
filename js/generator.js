@@ -37,7 +37,7 @@ function buildPuzzleModel(rows, cols, isClue, slots, fillResult) {
 // pairing fresh skeletons with fill attempts until one combination works
 // or the time budget runs out. Bigger grids can fit longer words, so the
 // max word length scales with grid size instead of staying fixed.
-function generatePuzzle(rows, cols, dictionary, { timeBudgetMs = 8000, fillAttemptsPerSkeleton = 4 } = {}) {
+function generatePuzzle(rows, cols, dictionary, { timeBudgetMs = 8000, fillAttemptsPerSkeleton = 1 } = {}) {
   const deadline = Date.now() + timeBudgetMs;
   // Cap word length by what the dictionary can actually serve (it thins
   // out fast past 9 letters), not just by grid size.

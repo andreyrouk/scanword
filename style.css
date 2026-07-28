@@ -89,25 +89,31 @@ h1 { font-weight: 700; font-size: 26px; margin: 0 0 8px; }
   position: relative;
   flex: 1 1 0;
   min-height: 0;
+  min-width: 0;
   display: flex;
   align-items: center;
-  font-size: 9px;
-  line-height: 1.05;
   color: var(--ink);
   text-align: left;
-  padding: 0 2px;
+  padding: 0 1px;
   cursor: pointer;
   overflow: hidden;
 }
 .cell.clue.dual .clue-block:first-child { border-bottom: 1px solid var(--line); }
 .clue-block:hover { background: var(--green-bg-hover); }
+/* Font size is set per-cell by fitClueText() in app.js so the whole clue
+   fits without clipping and without resizing the cell. */
 .clue-text {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  overflow: hidden;
+  display: block;
+  width: 100%;
+  /* Without this a flex item refuses to shrink below its longest word,
+     so a long word would spill outside the cell instead of wrapping. */
+  min-width: 0;
+  line-height: 1.08;
+  /* overflow-wrap (not word-break) so a word is split only when it can't
+     fit a line on its own - otherwise fitClueText shrinks the font and
+     the text wraps at spaces, the way it reads naturally. */
+  overflow-wrap: break-word;
 }
-.cell.clue.dual .clue-text { -webkit-line-clamp: 2; }
 
 /* Arrows sit on the clue cell's edge facing the word's first letter,
    half-overlapping the neighbor cell - like the printed originals. */
@@ -137,10 +143,14 @@ h1 { font-weight: 700; font-size: 26px; margin: 0 0 8px; }
   text-align: center; font-family: Arial, sans-serif; font-weight: 700;
   font-size: 20px; color: var(--ink); text-transform: uppercase; outline: none; cursor: pointer;
 }
+/* A solved word shows as green letters on a plain white cell - no green
+   fill, so it never reads as "this cell is a clue". Selection highlight
+   is declared after, and so still wins on a solved cell that happens to
+   be part of the word you're currently on. */
+.cell.letter.locked { background: var(--bg); }
+.cell.letter.locked input { color: var(--green); cursor: default; }
 .cell.letter.highlight { background: var(--highlight); }
 .cell.letter.focused { background: var(--focused); }
-.cell.letter.locked { background: var(--correct-bg); }
-.cell.letter.locked input { color: var(--correct-text); cursor: default; }
 
 .controls { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 button {

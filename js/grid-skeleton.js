@@ -288,7 +288,10 @@ function extractRuns(isClue, rows, cols) {
   return runs;
 }
 
-function generateSkeleton(rows, cols, { maxWordLen = 7, secondClueP = 0.5 } = {}, maxAttempts = 400) {
+// secondClueP defaults to 0: one word per clue cell. Two clues crammed
+// into one cell leaves each of them too little room to be readable at
+// puzzle scale, so it's not worth the extra density.
+function generateSkeleton(rows, cols, { maxWordLen = 7, secondClueP = 0 } = {}, maxAttempts = 400) {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const built = tryBuild(rows, cols, maxWordLen, secondClueP);
     if (!built) continue;

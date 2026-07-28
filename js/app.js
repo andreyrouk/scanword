@@ -120,6 +120,14 @@ function checkWordCompletion() {
         cellEls[kk].classList.add("locked");
         cellEls[kk].classList.remove("highlight", "focused");
       });
+      // Solving the word you were on clears the selection: nothing is
+      // left highlighted for a word that's already done.
+      if (activeWordId === w.id) {
+        clearHighlights();
+        activeWordId = null;
+        focusedKey = null;
+        if (document.activeElement) document.activeElement.blur();
+      }
     }
   });
 }
@@ -213,8 +221,37 @@ function renderPuzzle(p) {
     }
   }
 
+  fitClueText();
   if (p.words.length) selectWord(p.words[0].id, true);
 }
+
+// Shrinks each clue's font until the whole text fits its cell, so a long
+// clue is never cut off - and never widens the cell to make room. Runs
+// once per render (and on resize, since the fit depends on cell size).
+function fitClueText() {
+  const MAX_PX = 11;
+  const MIN_PX = 4;
+  gridEl.querySelectorAll(".clue-block").forEach((block) => {
+    const text = block.querySelector(".clue-text");
+    if (!text) return;
+    let size = MAX_PX;
+    text.style.fontSize = size + "px";
+    while (
+      size > MIN_PX &&
+      (text.scrollHeight > block.clientHeight || text.scrollWidth > block.clientWidth)
+    ) {
+      size -= 0.25;
+      text.style.fontSize = size + "px";
+    }
+  });
+}
+
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  if (!puzzle) return;
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => renderPuzzle(puzzle), 150);
+});
 
 // A single fixed square size for every cell: large enough to read
 // comfortably at small grid sizes, shrinking as needed so bigger grids
@@ -240,7 +277,7 @@ async function runGenerate() {
   gridEl.innerHTML = "";
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  const result = generatePuzzle(rows, cols, DICTIONARY, { timeBudgetMs: 25000 });
+  const result = generatePuzzle(rows, cols, DICTIONARY, { timeBudgetMs: 20000 });
   if (!result) {
     setStatus("Не вдалося згенерувати сітку такого розміру. Спробуйте менший розмір.");
     return;
