@@ -61,7 +61,12 @@ function main() {
     if (!line) return;
     if (idx === 0 && /^word,clue,length$/i.test(line)) return;
 
-    const [wRaw, clRaw] = parseCsvLine(line);
+    const tokens = parseCsvLine(line);
+    // Normally word,clue,length (3 tokens). If the clue has an unescaped
+    // comma it splits into extra tokens -- rejoin everything between the
+    // first (word) and last (length) token back into the clue.
+    const wRaw = tokens[0];
+    const clRaw = tokens.length > 3 ? tokens.slice(1, -1).join(",") : tokens[1];
     const word = (wRaw || "").trim().toUpperCase();
     const clue = (clRaw || "").trim();
 
