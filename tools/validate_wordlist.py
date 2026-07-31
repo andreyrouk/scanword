@@ -4,8 +4,14 @@ Validator for the scanword word/clue list.
 Usage: python3 validate_wordlist.py path/to/batch.csv
 
 Checks every row against the four rules:
-1. Word: Ukrainian (Cyrillic) letters only. No spaces, apostrophes, or hyphens.
-2. Word length: 3-12 letters.
+1. Word: Ukrainian (Cyrillic) letters only, apostrophes stripped.
+   Apostrophes are a normal part of Ukrainian spelling (м'яч, п'ять,
+   комп'ютер, сім'я) and should NOT disqualify a word — strip the
+   apostrophe character and use the remaining letters as the answer
+   (м'яч -> мяч). Spaces and hyphens are still invalid: those usually
+   signal a multi-word or compound name, and naively concatenating
+   them produces a fake word, not a real single answer.
+2. Word length: 3-12 letters (measured AFTER apostrophe stripping).
 3. Clue must not contain the answer word itself, or an obvious stem of it
    (checked as: first 5 letters of the word for words >=5 letters,
    first 4 letters for shorter words).
@@ -18,6 +24,12 @@ Also flags:
   a single puzzle).
 - Any non-Ukrainian stray characters in the clue text (e.g. accidental
   Roman numerals, Latin letters, or leftover formatting artifacts).
+
+IMPORTANT: this script expects the `word` column to already have
+apostrophes stripped (i.e. do the stripping at generation time, before
+writing the CSV) — it validates the cleaned word, it does not clean it
+for you. If a raw dictionary source still has apostrophes in it, strip
+all of ' ’ ʼ ` from the word before this check runs.
 
 Exit code is 0 if the batch is fully clean, 1 otherwise, so this can be
 used as a gate in a generation loop (generate -> validate -> fix failing
@@ -47,9 +59,13 @@ def is_ok_clue_char(ch: str) -> bool:
 
 def check_word_chars(word: str) -> list:
     problems = []
-    if any(ch in word for ch in " '-’ʼ"):
-        problems.append("word contains space/apostrophe/hyphen")
+    if any(ch in word for ch in " -"):
+        problems.append("word contains a space or hyphen (multi-word/compound names aren't valid single answers)")
+    if any(ch in word for ch in "'’ʼ`"):
+        problems.append("word still contains an apostrophe — strip it before writing to the CSV (м'яч -> мяч)")
     for ch in word:
+        if ch in "'’ʼ`":
+            continue
         up = ch.upper()
         if not (('А' <= up <= 'Я') or up in 'ІЇЄҐ'):
             problems.append(f"word contains non-Ukrainian character: {ch!r}")
