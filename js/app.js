@@ -307,25 +307,40 @@ function setStatus(text) {
   statusEl.textContent = text;
 }
 
+const generateBtn = document.getElementById("generateBtn");
+
 async function runGenerate() {
-  const rows = Math.max(5, Math.min(6, parseInt(rowsInput.value, 10) || 6));
-  const cols = Math.max(5, Math.min(6, parseInt(colsInput.value, 10) || 6));
+  const rows = Math.max(5, Math.min(10, parseInt(rowsInput.value, 10) || 6));
+  const cols = Math.max(5, Math.min(10, parseInt(colsInput.value, 10) || 6));
   rowsInput.value = rows;
   colsInput.value = cols;
 
+  generateBtn.disabled = true;
   setStatus("Генерую сітку… (для великих сіток це може зайняти кілька секунд)");
   gridEl.innerHTML = "";
   await new Promise((resolve) => setTimeout(resolve, 0));
 
-  const result = generatePuzzle(rows, cols, DICTIONARY, { timeBudgetMs: 20000 });
-  if (!result) {
-    setStatus("Не вдалося згенерувати сітку такого розміру. Спробуйте менший розмір.");
-    return;
+  // Bigger grids need a lot more retries to land a fillable combination
+  // (measured: 6x6 resolves in milliseconds, 10x10 occasionally needs
+  // 20-30s of retries) - a flat budget that's generous enough for 10x10
+  // would make every failed small-grid attempt wait needlessly long, and
+  // one sized for 6x6 would cut 10x10 off before it has a real chance.
+  const dim = Math.max(rows, cols);
+  const timeBudgetMs = 15000 + Math.max(0, dim - 6) * 4000;
+
+  try {
+    const result = await generatePuzzle(rows, cols, DICTIONARY, { timeBudgetMs });
+    if (!result) {
+      setStatus("Не вдалося згенерувати сітку такого розміру. Спробуйте менший розмір.");
+      return;
+    }
+    renderPuzzle(result);
+  } finally {
+    generateBtn.disabled = false;
   }
-  renderPuzzle(result);
 }
 
-document.getElementById("generateBtn").addEventListener("click", runGenerate);
+generateBtn.addEventListener("click", runGenerate);
 
 document.getElementById("checkBtn").addEventListener("click", () => {
   if (!puzzle) return;

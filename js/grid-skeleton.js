@@ -49,7 +49,7 @@ function shuffleArr(arr) {
   return a;
 }
 
-function tryBuild(rows, cols, maxWordLen, secondClueP) {
+function tryBuild(rows, cols, maxWordLen, secondClueP, nodeBudget) {
   const U = 0, L = 1, K = 2;
   const state = Array.from({ length: rows }, () => new Array(cols).fill(U));
   // hEnd/vEnd: if a cell is covered by an across/down word, the column/row
@@ -192,7 +192,7 @@ function tryBuild(rows, cols, maxWordLen, secondClueP) {
   }
 
   let nodes = 0;
-  const NODE_BUDGET = 25000;
+  const NODE_BUDGET = nodeBudget;
 
   // Once the scan has fully passed a row, no future placement can touch
   // it - so its horizontal runs are final and must each be exactly one
@@ -291,9 +291,20 @@ function extractRuns(isClue, rows, cols) {
 // secondClueP defaults to 0: one word per clue cell. Two clues crammed
 // into one cell leaves each of them too little room to be readable at
 // puzzle scale, so it's not worth the extra density.
-function generateSkeleton(rows, cols, { maxWordLen = 7, secondClueP = 0 } = {}, maxAttempts = 400) {
+//
+// nodeBudget bounds each individual construction attempt. Counter-
+// intuitively, a *smaller* per-attempt budget performs better on bigger
+// grids: the backtracking search blows up exponentially on a bad early
+// choice, so a tight budget fails fast and lets the loop reroll a fresh
+// random attempt instead of grinding through one doomed search tree.
+// deadline (a Date.now()-style timestamp) lets a caller bound the total
+// wall-clock time across every attempt, not just the attempt count -
+// without it, a slow size (10x10+) can blow past any budget the caller
+// set because a single attempt's own cost isn't checked against it.
+function generateSkeleton(rows, cols, { maxWordLen = 7, secondClueP = 0, nodeBudget = 1200 } = {}, maxAttempts = 2000, deadline = Infinity) {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const built = tryBuild(rows, cols, maxWordLen, secondClueP);
+    if (Date.now() > deadline) return null;
+    const built = tryBuild(rows, cols, maxWordLen, secondClueP, nodeBudget);
     if (!built) continue;
 
     const isClue = built.state.map((row) => row.map((s) => s === 2));

@@ -21,10 +21,26 @@ function shuffle(arr) {
 
 function fillSlots(slots, dictionary, { nodeBudget = 4000 } = {}) {
   const byLength = new Map();
+  // byLengthPos[len][position] -> Map(letter -> entries at that length with
+  // that letter at that position). Lets candidatesFor jump straight to a
+  // small pre-filtered list once a slot has even one crossing letter fixed,
+  // instead of re-scanning the whole (thousand-plus-word) length bucket at
+  // every backtracking node - that rescan was the actual bottleneck on
+  // bigger grids (dozens of slots, most sharing several fixed letters).
+  const byLengthPos = new Map();
   dictionary.forEach((entry) => {
     const len = entry.word.length;
-    if (!byLength.has(len)) byLength.set(len, []);
+    if (!byLength.has(len)) {
+      byLength.set(len, []);
+      byLengthPos.set(len, Array.from({ length: len }, () => new Map()));
+    }
     byLength.get(len).push(entry);
+    const posMaps = byLengthPos.get(len);
+    for (let i = 0; i < len; i++) {
+      const ch = entry.word[i];
+      if (!posMaps[i].has(ch)) posMaps[i].set(ch, []);
+      posMaps[i].get(ch).push(entry);
+    }
   });
 
   // Fail fast if some slot's length has zero dictionary candidates at all.
@@ -39,16 +55,31 @@ function fillSlots(slots, dictionary, { nodeBudget = 4000 } = {}) {
   let nodes = 0;
 
   function candidatesFor(slot) {
-    const pool = byLength.get(slot.cells.length) || [];
-    return pool.filter((entry) => {
-      if (usedWords.has(entry.word)) return false;
-      for (let i = 0; i < slot.cells.length; i++) {
-        const [r, c] = slot.cells[i];
-        const existing = letterAt.get(key(r, c));
-        if (existing && existing !== entry.word[i]) return false;
+    const len = slot.cells.length;
+    const posMaps = byLengthPos.get(len);
+    const fixed = [];
+    for (let i = 0; i < len; i++) {
+      const [r, c] = slot.cells[i];
+      const letter = letterAt.get(key(r, c));
+      if (letter) fixed.push([i, letter]);
+    }
+
+    let pool;
+    if (fixed.length === 0) {
+      pool = byLength.get(len) || [];
+    } else {
+      // Start from whichever fixed position has the smallest indexed list,
+      // then filter that (already small) list by the rest of the fixed
+      // letters instead of touching the full length bucket at all.
+      let best = null;
+      for (const [i, letter] of fixed) {
+        const list = posMaps[i].get(letter) || [];
+        if (best === null || list.length < best.length) best = list;
       }
-      return true;
-    });
+      pool = fixed.length === 1 ? best : best.filter((entry) => fixed.every(([i, letter]) => entry.word[i] === letter));
+    }
+
+    return pool.filter((entry) => !usedWords.has(entry.word));
   }
 
   function backtrack(remaining) {

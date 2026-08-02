@@ -35,17 +35,44 @@ function buildPuzzleModel(rows, cols, isClue, slots, fillResult) {
 // internally, and a single fillSlots call is fast even when it fails) but
 // neither succeeds every time on its own, so the outer loop just keeps
 // pairing fresh skeletons with fill attempts until one combination works
-// or the time budget runs out. Bigger grids can fit longer words, so the
-// max word length scales with grid size instead of staying fixed.
-function generatePuzzle(rows, cols, dictionary, { timeBudgetMs = 8000, fillAttemptsPerSkeleton = 1 } = {}) {
+// or the time budget runs out.
+//
+// maxWordLen is capped at 6 regardless of grid size (for grids big enough
+// to fit longer words at all) - not a dictionary-thinness issue, the
+// dictionary has 1000+ words at every length from 3 to 9. Measured
+// directly: a 9x9 grid with words up to 9 letters failed to fill in 10/10
+// trials even with a 50000-node budget, but capping at 6 let the same
+// size succeed in 9/10 trials in a few hundred ms. Each additional long
+// slot multiplies the number of simultaneous crossing constraints the
+// backtracking search has to satisfy at once, so a few long words per
+// puzzle is fine but letting *most* slots go long makes the puzzle
+// combinatorially unfillable in practice, independent of raw word supply.
+//
+// async so it can yield back to the browser every ~100ms of work (via the
+// setTimeout(0) below). Bigger grids can legitimately take 20-30s across
+// many retries - without yielding, that's a fully synchronous block: no
+// repaint (the "generating..." status never actually shows), no
+// responsiveness, and browsers start offering to kill an unresponsive tab
+// well before that. The yielding costs nothing when generation is fast
+// (small grids resolve in well under one slice and never hit it).
+async function generatePuzzle(rows, cols, dictionary, { timeBudgetMs = 8000, fillAttemptsPerSkeleton = 1 } = {}) {
   const deadline = Date.now() + timeBudgetMs;
-  // Cap word length by what the dictionary can actually serve (it thins
-  // out fast past 9 letters), not just by grid size.
-  const maxWordLen = Math.max(3, Math.min(9, Math.max(rows, cols)));
+  const maxWordLen = Math.max(3, Math.min(6, Math.max(rows, cols)));
+  let sliceStart = Date.now();
+
+  async function maybeYield() {
+    if (Date.now() - sliceStart > 100) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      sliceStart = Date.now();
+    }
+  }
 
   while (Date.now() < deadline) {
-    const skeleton = generateSkeleton(rows, cols, { maxWordLen });
-    if (!skeleton) continue;
+    const skeleton = generateSkeleton(rows, cols, { maxWordLen }, 2000, deadline);
+    if (!skeleton) {
+      await maybeYield();
+      continue;
+    }
 
     for (let i = 0; i < fillAttemptsPerSkeleton && Date.now() < deadline; i++) {
       const fillResult = fillSlots(skeleton.slots, dictionary);
@@ -53,6 +80,7 @@ function generatePuzzle(rows, cols, dictionary, { timeBudgetMs = 8000, fillAttem
         return buildPuzzleModel(rows, cols, skeleton.isClue, skeleton.slots, fillResult);
       }
     }
+    await maybeYield();
   }
   return null;
 }
