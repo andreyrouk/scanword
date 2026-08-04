@@ -27,18 +27,44 @@ import vm from "node:vm";
 const require = createRequire(import.meta.url);
 const DICTIONARY = require("../data/dictionary.js");
 
-// Each tier is a list of candidate sizes (one is picked per puzzle) and a
-// per-puzzle time budget generous enough for that size's real difficulty
-// - not the live UI's 15s-plus-4s-per-unit formula, which is deliberately
-// stingy to keep a browser tab responsive. maxWordLenOptions are tried in
-// order across retries within the budget: capping at 6 is what makes
-// filling reliable, but letting a fraction of attempts try 7 costs
-// nothing here and occasionally lands a puzzle with a bit more variety.
+// Each tier is a *range* of shapes, not one fixed size. Measured directly
+// (see rect-test in the session that added this): exact-shape difficulty
+// isn't a clean function of area - 7x13 (91 cells) failed in 30s while
+// 9x12 (108 cells, more cells) succeeded. Committing to one exact
+// rows x cols before knowing whether the dictionary actually tiles it
+// that way is gambling; instead, generateOne below tries a shuffled batch
+// of candidate shapes within the tier's range and keeps whichever one the
+// words cooperate with. That also happens to be the whole point of the
+// exercise: variety across 6x6 up through wide/tall rectangles like 7x13
+// or 10x18, not a fixed size, since a scanword doesn't need to be square.
 const TIERS = {
-  easy: { sizes: [6, 7], budgetMs: 20000, maxWordLenOptions: [6] },
-  medium: { sizes: [8, 9], budgetMs: 45000, maxWordLenOptions: [6, 7] },
-  hard: { sizes: [10, 11], budgetMs: 90000, maxWordLenOptions: [6, 7] },
+  easy: { minDim: 6, maxDim: 8, maxArea: 56, budgetMs: 25000, maxWordLenOptions: [6] },
+  medium: { minDim: 7, maxDim: 12, maxArea: 110, budgetMs: 60000, maxWordLenOptions: [6, 7] },
+  hard: { minDim: 8, maxDim: 18, maxArea: 170, budgetMs: 120000, maxWordLenOptions: [6, 7] },
 };
+
+// Every distinct (rows, cols) pair (both orientations - 7x13 and 13x7 are
+// different shapes on screen even though the search doesn't care) that
+// fits within the tier's dimension and area bounds, shuffled so repeated
+// runs don't all reach for the same handful of shapes first.
+function candidateShapes(tier) {
+  const shapes = [];
+  for (let r = tier.minDim; r <= tier.maxDim; r++) {
+    for (let c = tier.minDim; c <= tier.maxDim; c++) {
+      if (r * c <= tier.maxArea) shapes.push([r, c]);
+    }
+  }
+  return shuffle(shapes);
+}
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
 function buildVmContext() {
   const ctx = { DICTIONARY, console, Date, Math, setTimeout, Promise };
@@ -49,16 +75,26 @@ function buildVmContext() {
   return ctx;
 }
 
-async function generateOne(size, budgetMs, maxWordLenOptions) {
-  // Split the budget across the maxWordLen options to try instead of
-  // spending it all on the first one - if 6 is having a bad run, giving
-  // 7 a turn (or vice versa) is often faster than waiting out 6 alone.
-  const perOption = Math.floor(budgetMs / maxWordLenOptions.length);
-  for (const maxWordLen of maxWordLenOptions) {
-    const ctx = buildVmContext();
-    ctx.__args = [size, size, DICTIONARY, { timeBudgetMs: perOption, maxWordLen }];
-    const result = await vm.runInContext("generatePuzzle(...__args)", ctx);
-    if (result) return result;
+// Caps how many distinct shapes get a real try per puzzle - trying all of
+// them would slice the budget so thin that none gets a fair shot, and a
+// handful of fresh random shapes is already very different from
+// stubbornly retrying one fixed size.
+const SHAPES_PER_ATTEMPT = 8;
+
+async function generateOne(tier, budgetMs) {
+  const shapes = candidateShapes(tier).slice(0, SHAPES_PER_ATTEMPT);
+  const perShape = Math.floor(budgetMs / shapes.length);
+  for (const [rows, cols] of shapes) {
+    // Split each shape's slice across the maxWordLen options to try - if 6
+    // is having a bad run on this shape, giving 7 a turn (or vice versa)
+    // is often faster than waiting out 6 alone.
+    const perOption = Math.floor(perShape / tier.maxWordLenOptions.length);
+    for (const maxWordLen of tier.maxWordLenOptions) {
+      const ctx = buildVmContext();
+      ctx.__args = [rows, cols, DICTIONARY, { timeBudgetMs: perOption, maxWordLen }];
+      const result = await vm.runInContext("generatePuzzle(...__args)", ctx);
+      if (result) return result;
+    }
   }
   return null;
 }
@@ -87,10 +123,9 @@ async function main() {
 
   let ok = 0;
   for (let i = 0; i < count; i++) {
-    const size = tier.sizes[Math.floor(Math.random() * tier.sizes.length)];
     const start = Date.now();
-    process.stdout.write(`[${difficulty}] ${i + 1}/${count} (${size}x${size})... `);
-    const result = await generateOne(size, budgetMs, tier.maxWordLenOptions);
+    process.stdout.write(`[${difficulty}] ${i + 1}/${count}... `);
+    const result = await generateOne(tier, budgetMs);
     if (!result) {
       console.log(`FAILED after ${Date.now() - start}ms`);
       continue;

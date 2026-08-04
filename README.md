@@ -87,12 +87,21 @@ node tools/generate-levels.mjs hard 5       # -> data/levels/hard/*.json
 
 Each run appends to `data/levels/manifest.json` (the file list per
 difficulty) rather than overwriting it, so it's safe to run repeatedly to
-grow the pool. Difficulty is currently just a grid-size tier (easy 6-7,
-medium 8-9, hard 10-11), configured in `TIERS` at the top of the script;
-each tier gets a generous per-puzzle time budget since there's no live
-user to keep waiting - the hard tier alone gave 11x11 a real, if slow
-(order of tens of seconds), chance to succeed. 12x12+ is excluded even
-here, since patience alone doesn't clear that wall (see Current limits).
+grow the pool. Difficulty is a *range* of shapes, not one fixed size:
+`TIERS` in the script gives each difficulty a min/max dimension and a max
+area (easy roughly 6x6-8x8, medium up to ~12 a side, hard up to 18 a side
+capped around 170 cells total) rather than committing to one exact
+rows x cols. Measured directly: exact-shape difficulty isn't a clean
+function of area - a 7x13 grid (91 cells) failed where a 9x12 grid (108
+cells, more cells) succeeded - so pinning one specific rectangle before
+knowing whether the dictionary tiles it that way is gambling. Instead,
+`generateOne` tries a shuffled batch of candidate shapes within the
+tier's range per puzzle and keeps whichever one the words actually
+cooperate with - a real scanword doesn't have to be square, and this is
+also where the variety comes from (a "hard" run might land 11x9, 9x14, or
+10x10 - whatever worked). 12x12+ is excluded from every tier regardless
+of shape, since patience alone doesn't clear that wall (see Current
+limits).
 
 In the browser, `js/app.js` fetches the manifest, picks a random file for
 the chosen difficulty, and renders it - no search happens client-side at
