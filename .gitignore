@@ -1,2 +1,5 @@
 data/raw/
 node_modules/
+
+# Review scratch output - regenerate with tools/review-clues.mjs
+data/clue-review.csv
