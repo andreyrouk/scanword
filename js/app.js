@@ -15,6 +15,7 @@ let activeWordId = null;
 let focusedKey = null;
 let lockedWords = new Set();
 let lockedCells = new Set();
+let puzzleSolved = false; // guards the completion pulse so it fires once per puzzle
 
 const gridEl = document.getElementById("grid");
 const statusEl = document.getElementById("status");
@@ -117,8 +118,12 @@ function checkWordCompletion() {
       keys.forEach((kk, i) => {
         lockedCells.add(kk);
         inputEls[kk].dataset.letter = w.answer[i];
-        cellEls[kk].classList.add("locked");
+        cellEls[kk].classList.add("locked", "just-locked");
         cellEls[kk].classList.remove("highlight", "focused");
+        // Transient - .just-locked only exists to trigger the CSS pop
+        // animation once, then gets out of the way so re-rendering that
+        // cell for any other reason doesn't replay it.
+        setTimeout(() => cellEls[kk].classList.remove("just-locked"), 320);
       });
       // Solving the word you were on clears the selection: nothing is
       // left highlighted for a word that's already done.
@@ -130,6 +135,16 @@ function checkWordCompletion() {
       }
     }
   });
+
+  // Fires the moment the last word locks, typing or not - a player
+  // shouldn't have to remember to press "Перевірити" just to be told they
+  // already won.
+  if (!puzzleSolved && puzzle.words.length > 0 && lockedWords.size === puzzle.words.length) {
+    puzzleSolved = true;
+    setStatus("✓ Все правильно!");
+    gridEl.classList.add("solved");
+    setTimeout(() => gridEl.classList.remove("solved"), 900);
+  }
 }
 
 function renderPuzzle(p) {
@@ -142,6 +157,7 @@ function renderPuzzle(p) {
   focusedKey = null;
   lockedWords = new Set();
   lockedCells = new Set();
+  puzzleSolved = false;
   statusEl.textContent = "";
 
   p.words.forEach((w) => {
@@ -434,6 +450,7 @@ document.getElementById("resetBtn").addEventListener("click", () => {
   });
   lockedWords = new Set();
   lockedCells = new Set();
+  puzzleSolved = false;
   clearHighlights();
   activeWordId = null;
   focusedKey = null;

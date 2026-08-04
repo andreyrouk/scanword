@@ -3,12 +3,22 @@
   --bg: #ffffff;
   --line: #cfcfcf;
   --green: #2e7d46;
+  --green-dark: #256339;
   --green-bg: #e3f3e8;
   --green-bg-hover: #d3ecdb;
   --highlight: #fff3b0;
   --focused: #ffe066;
   --correct-bg: #dff3e3;
   --correct-text: #1f6b37;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.08);
+  /* A system-font stack, not a webfont: each platform's own native sans
+     (San Francisco, Segoe UI, Roboto) already reads as considered and
+     modern there, and there's nothing to download for an app that has to
+     work offline. Plain "Arial" (the old value) forces the one font every
+     OS ships as its default fallback, which is exactly what makes generic
+     web content read as dated. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -25,19 +35,20 @@ html {
 
 body {
   margin: 0;
-  padding: 24px 16px 56px;
+  padding: 32px 16px 64px;
   background: var(--bg);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
   color: var(--ink);
   display: flex;
   flex-direction: column;
   align-items: center;
 }
 
-.header { text-align: center; max-width: 480px; margin-bottom: 18px; }
-.eyebrow { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--green); font-weight: 700; margin-bottom: 6px; }
-h1 { font-weight: 700; font-size: 26px; margin: 0 0 8px; }
-.sub { font-size: 13px; color: #555; line-height: 1.5; margin: 0; }
+.header { text-align: center; max-width: 480px; margin-bottom: 24px; }
+.eyebrow { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--green); font-weight: 700; margin-bottom: 8px; }
+h1 { font-weight: 700; font-size: 27px; letter-spacing: -0.01em; margin: 0 0 8px; }
+.sub { font-size: 13.5px; color: #666; line-height: 1.55; margin: 0; }
 
 .settings {
   display: flex;
@@ -63,10 +74,16 @@ h1 { font-weight: 700; font-size: 26px; margin: 0 0 8px; }
   width: 56px;
   padding: 6px 8px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: 8px;
   font-family: inherit;
   font-size: 13px;
   text-align: center;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.settings input[type="number"]:focus {
+  outline: none;
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px var(--green-bg);
 }
 
 .grid-wrap { max-width: 100%; overflow-x: auto; padding-bottom: 4px; }
@@ -76,6 +93,9 @@ h1 { font-weight: 700; font-size: 26px; margin: 0 0 8px; }
   gap: 1px;
   background: var(--line);
   border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
   user-select: none;
 }
 
@@ -88,6 +108,7 @@ h1 { font-weight: 700; font-size: 26px; margin: 0 0 8px; }
   overflow: hidden;
   min-width: 0;
   min-height: 0;
+  transition: background-color 150ms ease;
 }
 
 .cell.deco-empty {
@@ -122,6 +143,7 @@ h1 { font-weight: 700; font-size: 26px; margin: 0 0 8px; }
   padding: 0 3px;
   cursor: pointer;
   overflow: hidden;
+  transition: background-color 150ms ease;
 }
 .cell.clue.dual .clue-block:first-child { border-bottom: 1px solid var(--line); }
 .clue-block:hover { background: var(--green-bg-hover); }
@@ -170,8 +192,9 @@ h1 { font-weight: 700; font-size: 26px; margin: 0 0 8px; }
 .cell.letter { cursor: pointer; }
 .cell.letter input {
   width: 100%; height: 100%; border: none; background: transparent;
-  text-align: center; font-family: Arial, sans-serif; font-weight: 700;
+  text-align: center; font-family: inherit; font-weight: 700;
   font-size: 20px; color: var(--ink); text-transform: uppercase; outline: none; cursor: pointer;
+  transition: color 150ms ease;
 }
 /* A solved word shows as green letters on a plain white cell - no green
    fill, so it never reads as "this cell is a clue". Selection highlight
@@ -182,15 +205,37 @@ h1 { font-weight: 700; font-size: 26px; margin: 0 0 8px; }
 .cell.letter.highlight { background: var(--highlight); }
 .cell.letter.focused { background: var(--focused); }
 
-.controls { margin-top: 20px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+/* A word locking in is the single most frequent moment of positive
+   feedback in the whole app - worth a small, cheap animation rather than
+   an instant color snap, without adding any new dependency. */
+@keyframes cellPop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+.cell.just-locked { animation: cellPop 320ms ease; }
+
+@keyframes gridSolvedPulse {
+  0% { box-shadow: var(--shadow-md), 0 0 0 0 rgba(46, 125, 70, 0.4); }
+  70% { box-shadow: var(--shadow-md), 0 0 0 16px rgba(46, 125, 70, 0); }
+  100% { box-shadow: var(--shadow-md), 0 0 0 0 rgba(46, 125, 70, 0); }
+}
+.grid.solved { animation: gridSolvedPulse 900ms ease-out; }
+
+.controls { margin-top: 24px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
 button {
   font-family: inherit; font-size: 13px; font-weight: 700;
-  padding: 10px 18px; border-radius: 4px; border: none; cursor: pointer;
+  padding: 11px 20px; border-radius: 10px; border: none; cursor: pointer;
+  transition: transform 100ms ease, box-shadow 150ms ease, background-color 150ms ease, border-color 150ms ease;
 }
-.btn-primary { background: var(--green); color: #fff; }
+button:active { transform: scale(0.96); }
+.btn-primary { background: var(--green); color: #fff; box-shadow: var(--shadow-sm); }
+.btn-primary:hover { background: var(--green-dark); }
+.btn-primary:disabled { background: var(--line); box-shadow: none; cursor: default; }
 .btn-ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn-ghost:hover { border-color: var(--green); color: var(--green); }
 
-.status { margin-top: 14px; font-size: 13px; min-height: 18px; font-weight: 600; color: var(--green); text-align: center; max-width: 460px; }
+.status { margin-top: 16px; font-size: 13px; min-height: 18px; font-weight: 600; color: var(--green); text-align: center; max-width: 460px; }
 
 @media (prefers-color-scheme: dark) {
   :root {
@@ -201,5 +246,12 @@ button {
     --green-bg-hover: #244a2f;
     --correct-bg: #1e3324;
     --correct-text: #7fd99a;
+    /* Darkening further for a hover state has nothing to contrast
+       against on a dark background - go lighter instead, and shadows
+       need to be near-black (not the light-mode gray) to read as
+       elevation rather than a faint halo. */
+    --green-dark: #3f9962;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.5);
   }
 }
