@@ -15,10 +15,20 @@
   </div>
 
   <div class="settings">
-    <label>Рядків <input type="number" id="rowsInput" value="6" min="5" max="10"></label>
-    <label>Колонок <input type="number" id="colsInput" value="6" min="5" max="10"></label>
-    <button class="btn-primary" id="generateBtn">Згенерувати</button>
+    <span class="settings-label">Рівень:</span>
+    <button class="btn-primary" id="easyBtn">Легкий</button>
+    <button class="btn-primary" id="mediumBtn">Середній</button>
+    <button class="btn-primary" id="hardBtn">Складний</button>
   </div>
+
+  <details class="custom-settings">
+    <summary>Або своя сітка (генерується наживо, може зайняти час)</summary>
+    <div class="settings">
+      <label>Рядків <input type="number" id="rowsInput" value="6" min="5" max="10"></label>
+      <label>Колонок <input type="number" id="colsInput" value="6" min="5" max="10"></label>
+      <button class="btn-primary" id="generateBtn">Згенерувати</button>
+    </div>
+  </details>
 
   <div class="grid-wrap">
     <div class="grid" id="grid"></div>

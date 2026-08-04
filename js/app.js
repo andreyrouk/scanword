@@ -342,6 +342,67 @@ async function runGenerate() {
 
 generateBtn.addEventListener("click", runGenerate);
 
+// Levels: puzzles pre-generated offline by tools/generate-levels.mjs and
+// committed as static JSON (data/levels/<difficulty>/*.json), listed in
+// data/levels/manifest.json. This is the real path for actually playing
+// the game - it loads instantly because nothing is solved at request
+// time, unlike the "custom size" generator above, which does the full
+// backtracking search live and can take many seconds on bigger grids.
+// A saved puzzle only stores rows/cols/isClue/words: clueCells is fully
+// derived from words, so buildClueCells() (from generator.js) rebuilds it
+// here exactly like buildPuzzleModel() does after a live generation.
+const levelButtons = {
+  easy: document.getElementById("easyBtn"),
+  medium: document.getElementById("mediumBtn"),
+  hard: document.getElementById("hardBtn"),
+};
+let manifestCache = null;
+
+function setActionButtonsDisabled(disabled) {
+  generateBtn.disabled = disabled;
+  Object.values(levelButtons).forEach((btn) => (btn.disabled = disabled));
+}
+
+async function loadLevel(difficulty) {
+  setActionButtonsDisabled(true);
+  setStatus("Завантажую рівень…");
+  gridEl.innerHTML = "";
+
+  try {
+    if (!manifestCache) {
+      const res = await fetch("data/levels/manifest.json");
+      if (!res.ok) throw new Error("manifest fetch failed: " + res.status);
+      manifestCache = await res.json();
+    }
+    const files = manifestCache[difficulty] || [];
+    if (files.length === 0) {
+      setStatus("Рівнів цієї складності ще немає.");
+      return;
+    }
+    const file = files[Math.floor(Math.random() * files.length)];
+    const res = await fetch(`data/levels/${difficulty}/${file}`);
+    if (!res.ok) throw new Error("level fetch failed: " + res.status);
+    const saved = await res.json();
+
+    renderPuzzle({
+      rows: saved.rows,
+      cols: saved.cols,
+      isClue: saved.isClue,
+      words: saved.words,
+      clueCells: buildClueCells(saved.words),
+    });
+  } catch (err) {
+    console.error(err);
+    setStatus("Не вдалося завантажити рівень.");
+  } finally {
+    setActionButtonsDisabled(false);
+  }
+}
+
+Object.entries(levelButtons).forEach(([difficulty, btn]) => {
+  btn.addEventListener("click", () => loadLevel(difficulty));
+});
+
 document.getElementById("checkBtn").addEventListener("click", () => {
   if (!puzzle) return;
   let filled = 0;

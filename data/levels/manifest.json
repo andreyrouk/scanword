@@ -1,0 +1,41 @@
+{
+  "easy": [
+    "6x6-000.json",
+    "6x6-001.json",
+    "6x6-002.json",
+    "7x7-003.json",
+    "6x6-004.json",
+    "6x6-005.json",
+    "7x7-006.json",
+    "7x7-007.json",
+    "7x7-008.json",
+    "6x6-009.json",
+    "7x7-010.json",
+    "6x6-011.json",
+    "6x6-012.json",
+    "7x7-013.json",
+    "7x7-014.json"
+  ],
+  "medium": [
+    "8x8-000.json",
+    "9x9-001.json",
+    "9x9-002.json",
+    "9x9-003.json",
+    "8x8-004.json",
+    "9x9-005.json",
+    "8x8-006.json",
+    "8x8-007.json",
+    "8x8-008.json",
+    "9x9-009.json",
+    "9x9-010.json",
+    "9x9-011.json"
+  ],
+  "hard": [
+    "10x10-000.json",
+    "10x10-001.json",
+    "10x10-002.json",
+    "11x11-003.json",
+    "11x11-004.json",
+    "10x10-005.json"
+  ]
+}
