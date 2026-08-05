@@ -283,10 +283,22 @@ function finishPuzzle() {
     completed: true,
   });
 
-  // Campaign levels record progress; quick-play and custom grids don't,
-  // since they have no ladder position to attach a record to.
+  // Three destinations: a campaign level records ladder progress, the
+  // daily records against its date (and streak), and quick-play/custom
+  // grids record nothing because there's nothing to attach them to.
   let record = null;
-  if (currentLevelN !== null) {
+  let streak = null;
+  if (currentDailyKey !== null) {
+    const res = recordDailyResult(currentDailyKey, {
+      stars: result.stars,
+      points: result.points,
+      timeSec: Math.round(secs),
+      hints: hintsUsed,
+      completed: true,
+    });
+    record = res;
+    streak = res.streak;
+  } else if (currentLevelN !== null) {
     record = recordLevelResult(currentLevelN, {
       stars: result.stars,
       points: result.points,
@@ -298,11 +310,11 @@ function finishPuzzle() {
     updateProgressSummary();
   }
 
-  showResults(result, secs, record);
+  showResults(result, secs, record, streak);
   setStatus("✓ Все правильно!");
 }
 
-function showResults(result, secs, record) {
+function showResults(result, secs, record, streak = null) {
   document.getElementById("resultsStars").textContent = "★".repeat(result.stars) + "☆".repeat(3 - result.stars);
   document.getElementById("resultsPerfect").hidden = !result.perfect;
   document.getElementById("resultsPoints").textContent = result.points.toLocaleString("uk-UA");
@@ -310,19 +322,17 @@ function showResults(result, secs, record) {
     `Час ${formatTime(secs)} · ціль ${formatTime(result.parSeconds)} · підказок ${hintsUsed}`;
 
   const bestEl = document.getElementById("resultsBest");
-  if (record && record.improved) {
-    bestEl.textContent = "Новий рекорд!";
-    bestEl.hidden = false;
-  } else if (record) {
-    bestEl.textContent = `Ваш рекорд: ${record.merged.points.toLocaleString("uk-UA")} очок`;
-    bestEl.hidden = false;
-  } else {
-    bestEl.hidden = true;
-  }
+  const bits = [];
+  if (record && record.improved) bits.push("Новий рекорд!");
+  else if (record) bits.push(`Ваш рекорд: ${record.merged.points.toLocaleString("uk-UA")} очок`);
+  if (streak) bits.push(`Серія: ${streak} ${streak === 1 ? "день" : "дн."}`);
+  bestEl.textContent = bits.join(" · ");
+  bestEl.hidden = bits.length === 0;
 
-  // Only offer "next" when there is one and it's now reachable.
+  // "Next level" is campaign-only: the daily has no next puzzle to go to.
   const nextBtn = document.getElementById("nextLevelBtn");
-  nextBtn.hidden = !(currentLevelN !== null && ladder && currentLevelN < ladder.levels.length);
+  nextBtn.hidden = !(currentDailyKey === null && currentLevelN !== null && ladder && currentLevelN < ladder.levels.length);
+  document.getElementById("toMenuBtn").textContent = currentDailyKey !== null ? "До меню" : "До рівнів";
 
   resultsEl.hidden = false;
 }
@@ -521,8 +531,9 @@ async function runGenerate() {
   colsInput.value = cols;
 
   generateBtn.disabled = true;
-  // A hand-rolled grid isn't a ladder level either.
+  // A hand-rolled grid isn't a ladder level or the daily either.
   currentLevelN = null;
+  currentDailyKey = null;
   showPlay("Своя сітка");
   setStatus("Генерую сітку… (для великих сіток це може зайняти кілька секунд)");
   gridEl.innerHTML = "";
@@ -602,6 +613,7 @@ async function loadLevel(difficulty) {
     currentDifficulty = difficulty;
     // Quick play has no ladder position, so nothing is recorded for it.
     currentLevelN = null;
+    currentDailyKey = null;
     showPlay("Швидка гра");
     renderPuzzle({
       rows: saved.rows,
@@ -673,26 +685,57 @@ document.getElementById("resetBtn").addEventListener("click", () => {
 document.getElementById("hintBtn").addEventListener("click", useHint);
 
 // --- campaign ladder ---------------------------------------------------
+const homeScreen = document.getElementById("homeScreen");
 const menuScreen = document.getElementById("menuScreen");
 const playScreen = document.getElementById("playScreen");
 const ladderEl = document.getElementById("ladder");
 let ladder = null;
-let currentLevelN = null; // null = quick play / custom grid, so no record is kept
+let currentLevelN = null; // null = quick play / custom / daily: no campaign record
+let currentDailyKey = null; // set only while the daily puzzle is in play
+
+const SCREENS = { home: homeScreen, levels: menuScreen, play: playScreen };
+
+function showScreen(name) {
+  // Leaving a puzzle mid-solve must stop the clock, or an abandoned run
+  // keeps accruing time and poisons the next result recorded for it.
+  if (name !== "play") stopTimer();
+  Object.entries(SCREENS).forEach(([key, el]) => {
+    el.hidden = key !== name;
+  });
+}
+
+function showHome() {
+  showScreen("home");
+  updateHomeSummary();
+}
 
 function showMenu() {
-  // Leaving a puzzle mid-solve must stop the clock, or the abandoned run
-  // keeps accruing time and poisons the next result recorded for it.
-  stopTimer();
-  playScreen.hidden = true;
-  menuScreen.hidden = false;
+  showScreen("levels");
   renderLadder();
   updateProgressSummary();
 }
 
-function showPlay(title) {
-  menuScreen.hidden = true;
-  playScreen.hidden = false;
+function showPlay(title, { daily = false } = {}) {
+  showScreen("play");
   document.getElementById("playTitle").textContent = title || "";
+  const badge = document.getElementById("dailyBadge");
+  badge.hidden = !daily;
+  badge.textContent = daily ? "СКАНВОРД ДНЯ" : "";
+}
+
+function updateHomeSummary() {
+  if (!ladder) return;
+  const total = ladder.levels.length;
+  document.getElementById("homePlaySub").textContent = `${completedCount()} / ${total} рівнів · ★ ${totalStars()}`;
+
+  const key = dailyDateKey();
+  const done = getDailyResult(key);
+  const streak = getDailyStreak();
+  const parts = [];
+  if (done && done.completed) parts.push(`сьогодні пройдено ★ ${done.stars}`);
+  else parts.push("сьогодні ще не пройдено");
+  if (streak > 0) parts.push(`серія ${streak}`);
+  document.getElementById("homeDailySub").textContent = parts.join(" · ");
 }
 
 function updateProgressSummary() {
@@ -757,6 +800,7 @@ async function loadLadderLevel(n) {
     const saved = await res.json();
 
     currentLevelN = n;
+    currentDailyKey = null;
     currentDifficulty = lvl.tier;
     renderPuzzle({
       rows: saved.rows,
@@ -772,8 +816,59 @@ async function loadLadderLevel(n) {
   }
 }
 
-document.getElementById("backBtn").addEventListener("click", showMenu);
-document.getElementById("toMenuBtn").addEventListener("click", showMenu);
+async function loadDaily() {
+  if (!ladder) return;
+  const dateKey = dailyDateKey();
+  const lvl = pickDailyLevel(ladder.levels, dateKey);
+  if (!lvl) {
+    setStatus("Сканворд дня недоступний.");
+    return;
+  }
+
+  showPlay(`${lvl.rows}×${lvl.cols}`, { daily: true });
+  setStatus("Завантажую…");
+  gridEl.innerHTML = "";
+
+  try {
+    const res = await fetch(`data/levels/${lvl.file}`);
+    if (!res.ok) throw new Error("daily fetch failed: " + res.status);
+    const saved = await res.json();
+
+    // The daily is not a campaign level: it must not write to ladder
+    // progress or unlock anything, so currentLevelN stays null and the
+    // date key routes the result to daily storage instead.
+    currentLevelN = null;
+    currentDailyKey = dateKey;
+    currentDifficulty = "daily";
+    renderPuzzle({
+      rows: saved.rows,
+      cols: saved.cols,
+      isClue: saved.isClue,
+      words: saved.words,
+      clueCells: buildClueCells(saved.words),
+    });
+
+    const prev = getDailyResult(dateKey);
+    setStatus(prev && prev.completed ? `Сьогодні вже пройдено (★ ${prev.stars}). Можна перерозв'язати.` : "");
+  } catch (err) {
+    console.error(err);
+    setStatus("Не вдалося завантажити сканворд дня.");
+  }
+}
+
+// The back button returns wherever the player came from, so the daily
+// doesn't dump them into the level list they never opened.
+document.getElementById("backBtn").addEventListener("click", () => {
+  if (currentDailyKey !== null) showHome();
+  else showMenu();
+});
+document.getElementById("toMenuBtn").addEventListener("click", () => {
+  if (currentDailyKey !== null) showHome();
+  else showMenu();
+});
+document.getElementById("levelsBackBtn").addEventListener("click", showHome);
+document.getElementById("playBtn").addEventListener("click", showMenu);
+document.getElementById("dailyBtn").addEventListener("click", loadDaily);
 document.getElementById("nextLevelBtn").addEventListener("click", () => {
   if (currentLevelN !== null) loadLadderLevel(currentLevelN + 1);
 });
@@ -790,6 +885,7 @@ async function initLadder() {
   }
   renderLadder();
   updateProgressSummary();
+  updateHomeSummary();
 }
 
 initLadder();

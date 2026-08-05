@@ -14,7 +14,33 @@
     <p class="sub">Кожна клітинка — підказка або літера. Клікни на підказку, щоб перейти до слова, або на літеру, щоб почати вписувати відповідь.</p>
   </div>
 
-  <div id="menuScreen">
+  <div id="homeScreen">
+    <nav class="home-menu">
+      <button class="home-btn home-btn-primary" id="playBtn">
+        <span class="home-btn-label">Грати</span>
+        <span class="home-btn-sub" id="homePlaySub">100 рівнів</span>
+      </button>
+      <button class="home-btn" id="dailyBtn">
+        <span class="home-btn-label">Сканворд дня</span>
+        <span class="home-btn-sub" id="homeDailySub">—</span>
+      </button>
+      <button class="home-btn" id="optionsBtn" disabled>
+        <span class="home-btn-label">Налаштування</span>
+        <span class="home-btn-sub">незабаром</span>
+      </button>
+      <button class="home-btn" id="rulesBtn" disabled>
+        <span class="home-btn-label">Правила</span>
+        <span class="home-btn-sub">незабаром</span>
+      </button>
+    </nav>
+  </div>
+
+  <div id="menuScreen" hidden>
+    <div class="play-head">
+      <button class="btn-ghost btn-back" id="levelsBackBtn">← Меню</button>
+      <span class="play-title">Рівні</span>
+    </div>
+
     <div class="progress-summary">
       <span class="progress-stars">★</span>
       <span id="totalStars">0</span><span class="progress-of">/</span><span id="maxStars">0</span>
@@ -42,8 +68,9 @@
   <div id="playScreen" hidden>
 
   <div class="play-head">
-    <button class="btn-ghost btn-back" id="backBtn">← Рівні</button>
+    <button class="btn-ghost btn-back" id="backBtn">←</button>
     <span class="play-title" id="playTitle"></span>
+    <span class="play-badge" id="dailyBadge" hidden></span>
   </div>
 
   <div class="statsbar" id="statsbar" hidden>
@@ -83,6 +110,7 @@
   <script src="js/generator.js"></script>
   <script src="js/scoring.js"></script>
   <script src="js/progress.js"></script>
+  <script src="js/daily.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
