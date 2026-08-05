@@ -30,20 +30,35 @@
     </div>
   </details>
 
+  <div class="statsbar" id="statsbar" hidden>
+    <div class="stat"><span class="stat-label">Час</span><span class="stat-value" id="timerValue">0:00</span></div>
+    <div class="stat"><span class="stat-label">Ціль</span><span class="stat-value" id="parValue">—</span></div>
+    <div class="stat"><span class="stat-label">Підказки</span><span class="stat-value" id="hintsValue">0</span></div>
+  </div>
+
   <div class="grid-wrap">
     <div class="grid" id="grid"></div>
   </div>
 
   <div class="controls">
     <button class="btn-primary" id="checkBtn">Перевірити</button>
+    <button class="btn-ghost" id="hintBtn">Підказка</button>
     <button class="btn-ghost" id="resetBtn">Спочатку</button>
   </div>
   <div class="status" id="status"></div>
+
+  <div class="results" id="results" hidden>
+    <div class="results-stars" id="resultsStars"></div>
+    <div class="results-perfect" id="resultsPerfect" hidden>ІДЕАЛЬНО</div>
+    <div class="results-points"><span id="resultsPoints">0</span> <span class="results-points-label">очок</span></div>
+    <div class="results-meta" id="resultsMeta"></div>
+  </div>
 
   <script src="data/dictionary.js"></script>
   <script src="js/grid-skeleton.js"></script>
   <script src="js/word-filler.js"></script>
   <script src="js/generator.js"></script>
+  <script src="js/scoring.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

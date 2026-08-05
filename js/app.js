@@ -17,10 +17,78 @@ let lockedWords = new Set();
 let lockedCells = new Set();
 let puzzleSolved = false; // guards the completion pulse so it fires once per puzzle
 
+// --- solve session state (feeds js/scoring.js on completion) ----------
+let hintsUsed = 0;
+let hintedWords = new Set(); // word ids that received a hint - excluded from "unaided"
+let currentDifficulty = "easy";
+// The clock accumulates across pause/resume rather than being a single
+// start timestamp, so leaving the tab doesn't inflate the solve time.
+let elapsedMs = 0;
+let runningSince = null;
+let tickHandle = null;
+
 const gridEl = document.getElementById("grid");
 const statusEl = document.getElementById("status");
 const rowsInput = document.getElementById("rowsInput");
 const colsInput = document.getElementById("colsInput");
+const statsbarEl = document.getElementById("statsbar");
+const timerValueEl = document.getElementById("timerValue");
+const parValueEl = document.getElementById("parValue");
+const hintsValueEl = document.getElementById("hintsValue");
+const resultsEl = document.getElementById("results");
+
+function formatTime(totalSeconds) {
+  const s = Math.max(0, Math.floor(totalSeconds));
+  return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+}
+
+function elapsedSeconds() {
+  const live = runningSince === null ? 0 : Date.now() - runningSince;
+  return (elapsedMs + live) / 1000;
+}
+
+function startTimer() {
+  if (runningSince !== null) return;
+  runningSince = Date.now();
+  if (tickHandle === null) tickHandle = setInterval(updateStats, 1000);
+}
+
+function pauseTimer() {
+  if (runningSince === null) return;
+  elapsedMs += Date.now() - runningSince;
+  runningSince = null;
+}
+
+function stopTimer() {
+  pauseTimer();
+  if (tickHandle !== null) {
+    clearInterval(tickHandle);
+    tickHandle = null;
+  }
+}
+
+function resetTimer() {
+  stopTimer();
+  elapsedMs = 0;
+}
+
+// A puzzle left open in a background tab shouldn't accrue solve time -
+// that would be indistinguishable from a slow solve and would quietly
+// wreck both the player's score and, later, the leaderboard.
+document.addEventListener("visibilitychange", () => {
+  if (!puzzle || puzzleSolved) return;
+  if (document.hidden) pauseTimer();
+  else startTimer();
+});
+
+function updateStats() {
+  if (!puzzle) return;
+  const secs = elapsedSeconds();
+  timerValueEl.textContent = formatTime(secs);
+  const par = parTimeSeconds(puzzle.words.length);
+  timerValueEl.classList.toggle("over-par", secs > par);
+  hintsValueEl.textContent = String(hintsUsed);
+}
 
 function clearHighlights() {
   Object.values(cellEls).forEach((div) => div.classList.remove("highlight", "focused", "active"));
@@ -141,10 +209,72 @@ function checkWordCompletion() {
   // already won.
   if (!puzzleSolved && puzzle.words.length > 0 && lockedWords.size === puzzle.words.length) {
     puzzleSolved = true;
-    setStatus("✓ Все правильно!");
     gridEl.classList.add("solved");
     setTimeout(() => gridEl.classList.remove("solved"), 900);
+    finishPuzzle();
   }
+}
+
+// Reveals one letter of the word in play. Deliberately one *letter*, not
+// the whole word: it unsticks a player without handing them the answer,
+// and it keeps the cost of a hint proportionate to the help given.
+function useHint() {
+  if (!puzzle || puzzleSolved) return;
+
+  let word = activeWordId ? wordById[activeWordId] : null;
+  if (!word || lockedWords.has(word.id)) {
+    word = puzzle.words.find((w) => !lockedWords.has(w.id));
+  }
+  if (!word) return;
+
+  const keys = word.cells.map(([r, c]) => key(r, c));
+  // First cell that isn't already correct - so a hint never burns itself
+  // on a letter the player had right, and repeated hints walk the word.
+  const idx = keys.findIndex((k, i) => !lockedCells.has(k) && inputEls[k].value !== word.answer[i]);
+  if (idx === -1) return;
+
+  const k = keys[idx];
+  inputEls[k].value = word.answer[idx];
+  cellEls[k].classList.add("hinted");
+  hintsUsed++;
+  hintedWords.add(word.id);
+
+  selectWord(word.id, false);
+  checkWordCompletion();
+  updateStats();
+  if (!puzzleSolved) setStatus(`Відкрито літеру. Використано підказок: ${hintsUsed}.`);
+}
+
+function finishPuzzle() {
+  stopTimer();
+  const wordCount = puzzle.words.length;
+  // A word counts as unaided only if no hint touched it. Crossing letters
+  // from a hinted word still help neighbours, but charging every crossing
+  // word for one hint would make a single hint cascade into a wrecked
+  // score - the player asked for help with one word, not five.
+  const solvedUnaided = puzzle.words.filter((w) => lockedWords.has(w.id) && !hintedWords.has(w.id)).length;
+  const secs = elapsedSeconds();
+
+  const result = scoreSolve({
+    wordCount,
+    solvedUnaided,
+    hintsUsed,
+    elapsedSeconds: secs,
+    difficulty: currentDifficulty,
+    completed: true,
+  });
+
+  showResults(result, secs);
+  setStatus("✓ Все правильно!");
+}
+
+function showResults(result, secs) {
+  document.getElementById("resultsStars").textContent = "★".repeat(result.stars) + "☆".repeat(3 - result.stars);
+  document.getElementById("resultsPerfect").hidden = !result.perfect;
+  document.getElementById("resultsPoints").textContent = result.points.toLocaleString("uk-UA");
+  document.getElementById("resultsMeta").textContent =
+    `Час ${formatTime(secs)} · ціль ${formatTime(result.parSeconds)} · підказок ${hintsUsed}`;
+  resultsEl.hidden = false;
 }
 
 function renderPuzzle(p) {
@@ -158,6 +288,10 @@ function renderPuzzle(p) {
   lockedWords = new Set();
   lockedCells = new Set();
   puzzleSolved = false;
+  hintsUsed = 0;
+  hintedWords = new Set();
+  resetTimer();
+  resultsEl.hidden = true;
   statusEl.textContent = "";
 
   p.words.forEach((w) => {
@@ -239,6 +373,11 @@ function renderPuzzle(p) {
 
   fitClueText();
   if (p.words.length) selectWord(p.words[0].id, true);
+
+  statsbarEl.hidden = false;
+  parValueEl.textContent = formatTime(parTimeSeconds(p.words.length));
+  updateStats();
+  startTimer();
 }
 
 // Shrinks each clue's font until the whole text fits its cell, so a long
@@ -343,6 +482,11 @@ async function runGenerate() {
   // one sized for 6x6 would cut 10x10 off before it has a real chance.
   const dim = Math.max(rows, cols);
   const timeBudgetMs = 15000 + Math.max(0, dim - 6) * 4000;
+  // A custom-size puzzle still needs a difficulty for the score
+  // multiplier. Derive it from the grid the same way the offline
+  // generator tiers its output, so a hand-picked 10x10 is worth what a
+  // "hard" level of the same size is worth.
+  currentDifficulty = dim >= 10 ? "hard" : dim >= 8 ? "medium" : "easy";
 
   try {
     const result = await generatePuzzle(rows, cols, DICTIONARY, { timeBudgetMs });
@@ -400,6 +544,9 @@ async function loadLevel(difficulty) {
     if (!res.ok) throw new Error("level fetch failed: " + res.status);
     const saved = await res.json();
 
+    // Set before renderPuzzle: it starts the clock, and finishPuzzle reads
+    // this for the score multiplier.
+    currentDifficulty = difficulty;
     renderPuzzle({
       rows: saved.rows,
       cols: saved.cols,
@@ -446,16 +593,27 @@ document.getElementById("resetBtn").addEventListener("click", () => {
   Object.keys(inputEls).forEach((k) => {
     inputEls[k].value = "";
     delete inputEls[k].dataset.letter;
-    cellEls[k].classList.remove("locked");
+    cellEls[k].classList.remove("locked", "hinted");
   });
   lockedWords = new Set();
   lockedCells = new Set();
   puzzleSolved = false;
+  // Restarting the puzzle restarts the attempt: the clock and hint count
+  // go back to zero too, otherwise "Спочатку" would be a way to keep a
+  // fast time while retrying the parts you got wrong.
+  hintsUsed = 0;
+  hintedWords = new Set();
+  resetTimer();
+  resultsEl.hidden = true;
   clearHighlights();
   activeWordId = null;
   focusedKey = null;
   setStatus("");
   if (puzzle.words.length) selectWord(puzzle.words[0].id, true);
+  updateStats();
+  startTimer();
 });
+
+document.getElementById("hintBtn").addEventListener("click", useHint);
 
 runGenerate();

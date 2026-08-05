@@ -23,6 +23,14 @@
 
 * { box-sizing: border-box; }
 
+/* The browser implements the `hidden` attribute as a low-priority
+   `display: none`, so ANY explicit display rule silently defeats it -
+   .results-perfect (inline-block) and .statsbar (flex) both did exactly
+   that, staying on screen while their .hidden property read true. Making
+   it !important keeps `hidden` meaning hidden regardless of what a
+   component's own layout needs. */
+[hidden] { display: none !important; }
+
 /* Chrome on Android "boosts" font sizes in text blocks to make them
    easier to read, overriding the px sizes fitClueText() computes - which
    made clue text overflow its cell on phones. Opt out: the clue sizing
@@ -85,6 +93,24 @@ h1 { font-weight: 700; font-size: 27px; letter-spacing: -0.01em; margin: 0 0 8px
   border-color: var(--green);
   box-shadow: 0 0 0 3px var(--green-bg);
 }
+
+/* Live solve stats. Sits directly above the grid so the clock is visible
+   without looking away from the puzzle. */
+.statsbar {
+  display: flex;
+  gap: 28px;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+.stat { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.stat-label { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: #888; font-weight: 700; }
+.stat-value {
+  font-size: 18px; font-weight: 700; color: var(--ink);
+  /* Tabular figures stop the whole row from jittering sideways as the
+     seconds tick over - proportional digits change width per glyph. */
+  font-variant-numeric: tabular-nums;
+}
+.stat-value.over-par { color: #b3541e; }
 
 .grid-wrap { max-width: 100%; overflow-x: auto; padding-bottom: 4px; }
 
@@ -236,6 +262,38 @@ button:active { transform: scale(0.96); }
 .btn-ghost:hover { border-color: var(--green); color: var(--green); }
 
 .status { margin-top: 16px; font-size: 13px; min-height: 18px; font-weight: 600; color: var(--green); text-align: center; max-width: 460px; }
+
+/* A hinted letter stays visibly marked for the rest of the solve - the
+   player should always be able to see which letters they were given
+   rather than earned. */
+.cell.letter.hinted input { color: #b3541e; }
+
+@keyframes resultsIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.results {
+  margin-top: 20px;
+  padding: 20px 28px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow-md);
+  text-align: center;
+  animation: resultsIn 320ms ease;
+  max-width: 340px;
+  width: 100%;
+}
+.results-stars { font-size: 30px; letter-spacing: 4px; color: var(--green); line-height: 1; }
+.results-perfect {
+  margin-top: 8px;
+  display: inline-block;
+  font-size: 10px; font-weight: 800; letter-spacing: 0.14em;
+  color: #fff; background: var(--green);
+  padding: 4px 10px; border-radius: 999px;
+}
+.results-points { margin-top: 12px; font-size: 34px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+.results-points-label { font-size: 14px; font-weight: 600; color: #888; }
+.results-meta { margin-top: 8px; font-size: 12.5px; color: #666; line-height: 1.6; }
 
 @media (prefers-color-scheme: dark) {
   :root {
