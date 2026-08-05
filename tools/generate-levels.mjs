@@ -37,10 +37,16 @@ const DICTIONARY = require("../data/dictionary.js");
 // words cooperate with. That also happens to be the whole point of the
 // exercise: variety across 6x6 up through wide/tall rectangles like 7x13
 // or 10x18, not a fixed size, since a scanword doesn't need to be square.
+// shapesPerAttempt shrinks as the tier gets harder. The budget is split
+// evenly across (shape x maxWordLen) combinations, so trying many shapes
+// on a big grid gives each one too little time to succeed: at 8 shapes x
+// 2 word lengths a 120s hard budget leaves 7.5s per attempt, which is
+// well under what a 170-cell grid typically needs, and the tier starts
+// failing outright. Fewer shapes, more time each.
 const TIERS = {
-  easy: { minDim: 6, maxDim: 8, maxArea: 56, budgetMs: 25000, maxWordLenOptions: [6] },
-  medium: { minDim: 7, maxDim: 12, maxArea: 110, budgetMs: 60000, maxWordLenOptions: [6, 7] },
-  hard: { minDim: 8, maxDim: 18, maxArea: 170, budgetMs: 120000, maxWordLenOptions: [6, 7] },
+  easy: { minDim: 6, maxDim: 8, maxArea: 56, budgetMs: 25000, maxWordLenOptions: [6], shapesPerAttempt: 8 },
+  medium: { minDim: 7, maxDim: 12, maxArea: 110, budgetMs: 60000, maxWordLenOptions: [6, 7], shapesPerAttempt: 6 },
+  hard: { minDim: 8, maxDim: 18, maxArea: 170, budgetMs: 120000, maxWordLenOptions: [6, 7], shapesPerAttempt: 3 },
 };
 
 // Every distinct (rows, cols) pair (both orientations - 7x13 and 13x7 are
@@ -75,14 +81,12 @@ function buildVmContext() {
   return ctx;
 }
 
-// Caps how many distinct shapes get a real try per puzzle - trying all of
-// them would slice the budget so thin that none gets a fair shot, and a
-// handful of fresh random shapes is already very different from
-// stubbornly retrying one fixed size.
-const SHAPES_PER_ATTEMPT = 8;
-
 async function generateOne(tier, budgetMs) {
-  const shapes = candidateShapes(tier).slice(0, SHAPES_PER_ATTEMPT);
+  // Caps how many distinct shapes get a real try per puzzle - trying all
+  // of them would slice the budget so thin that none gets a fair shot,
+  // and a handful of fresh random shapes is already very different from
+  // stubbornly retrying one fixed size.
+  const shapes = candidateShapes(tier).slice(0, tier.shapesPerAttempt ?? 8);
   const perShape = Math.floor(budgetMs / shapes.length);
   for (const [rows, cols] of shapes) {
     // Split each shape's slice across the maxWordLen options to try - if 6

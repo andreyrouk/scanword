@@ -14,21 +14,37 @@
     <p class="sub">Кожна клітинка — підказка або літера. Клікни на підказку, щоб перейти до слова, або на літеру, щоб почати вписувати відповідь.</p>
   </div>
 
-  <div class="settings">
-    <span class="settings-label">Рівень:</span>
-    <button class="btn-primary" id="easyBtn">Легкий</button>
-    <button class="btn-primary" id="mediumBtn">Середній</button>
-    <button class="btn-primary" id="hardBtn">Складний</button>
+  <div id="menuScreen">
+    <div class="progress-summary">
+      <span class="progress-stars">★</span>
+      <span id="totalStars">0</span><span class="progress-of">/</span><span id="maxStars">0</span>
+      <span class="progress-sub" id="progressSub"></span>
+    </div>
+
+    <div class="ladder" id="ladder"></div>
+
+    <details class="custom-settings">
+      <summary>Швидка гра або своя сітка</summary>
+      <div class="settings">
+        <span class="settings-label">Випадковий:</span>
+        <button class="btn-primary" id="easyBtn">Легкий</button>
+        <button class="btn-primary" id="mediumBtn">Середній</button>
+        <button class="btn-primary" id="hardBtn">Складний</button>
+      </div>
+      <div class="settings">
+        <label>Рядків <input type="number" id="rowsInput" value="6" min="5" max="10"></label>
+        <label>Колонок <input type="number" id="colsInput" value="6" min="5" max="10"></label>
+        <button class="btn-primary" id="generateBtn">Згенерувати</button>
+      </div>
+    </details>
   </div>
 
-  <details class="custom-settings">
-    <summary>Або своя сітка (генерується наживо, може зайняти час)</summary>
-    <div class="settings">
-      <label>Рядків <input type="number" id="rowsInput" value="6" min="5" max="10"></label>
-      <label>Колонок <input type="number" id="colsInput" value="6" min="5" max="10"></label>
-      <button class="btn-primary" id="generateBtn">Згенерувати</button>
-    </div>
-  </details>
+  <div id="playScreen" hidden>
+
+  <div class="play-head">
+    <button class="btn-ghost btn-back" id="backBtn">← Рівні</button>
+    <span class="play-title" id="playTitle"></span>
+  </div>
 
   <div class="statsbar" id="statsbar" hidden>
     <div class="stat"><span class="stat-label">Час</span><span class="stat-value" id="timerValue">0:00</span></div>
@@ -52,13 +68,21 @@
     <div class="results-perfect" id="resultsPerfect" hidden>ІДЕАЛЬНО</div>
     <div class="results-points"><span id="resultsPoints">0</span> <span class="results-points-label">очок</span></div>
     <div class="results-meta" id="resultsMeta"></div>
+    <div class="results-best" id="resultsBest" hidden></div>
+    <div class="results-actions">
+      <button class="btn-primary" id="nextLevelBtn" hidden>Наступний рівень →</button>
+      <button class="btn-ghost" id="toMenuBtn">До рівнів</button>
+    </div>
   </div>
+
+  </div><!-- /playScreen -->
 
   <script src="data/dictionary.js"></script>
   <script src="js/grid-skeleton.js"></script>
   <script src="js/word-filler.js"></script>
   <script src="js/generator.js"></script>
   <script src="js/scoring.js"></script>
+  <script src="js/progress.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

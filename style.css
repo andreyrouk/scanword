@@ -94,6 +94,64 @@ h1 { font-weight: 700; font-size: 27px; letter-spacing: -0.01em; margin: 0 0 8px
   box-shadow: 0 0 0 3px var(--green-bg);
 }
 
+/* Body centres its children, so each screen has to be its own centring
+   column - otherwise the ladder and grid would left-align inside a
+   full-width block. The global [hidden] rule still wins over these. */
+#menuScreen, #playScreen {
+  display: flex; flex-direction: column; align-items: center; width: 100%;
+}
+
+/* --- campaign menu --------------------------------------------------- */
+.progress-summary {
+  display: flex; align-items: baseline; justify-content: center; gap: 4px;
+  font-size: 22px; font-weight: 800; margin-bottom: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.progress-stars { color: var(--green); margin-right: 4px; }
+.progress-of { color: #aaa; font-weight: 600; }
+#maxStars { color: #aaa; font-weight: 600; }
+.progress-sub { font-size: 12px; font-weight: 600; color: #888; margin-left: 10px; }
+
+.ladder {
+  display: grid;
+  /* auto-fill rather than a fixed column count: the ladder should get
+     wider on a desktop and stay a comfortable 4-5 across on a phone
+     without a media query per breakpoint. */
+  grid-template-columns: repeat(auto-fill, minmax(62px, 1fr));
+  gap: 8px;
+  width: 100%;
+  max-width: 560px;
+  margin-bottom: 22px;
+}
+.level-tile {
+  aspect-ratio: 1;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  cursor: pointer; font-family: inherit; padding: 0;
+  transition: transform 100ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+.level-tile:hover:not(:disabled) { border-color: var(--green); box-shadow: var(--shadow-sm); }
+.level-tile:active:not(:disabled) { transform: scale(0.95); }
+.level-tile-n { font-size: 15px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.level-tile-stars { font-size: 9px; letter-spacing: 1px; color: var(--green); min-height: 11px; }
+.level-tile.done { background: var(--green-bg); border-color: var(--green-bg-hover); }
+.level-tile.current { border-color: var(--green); border-width: 2px; box-shadow: var(--shadow-sm); }
+.level-tile:disabled { cursor: default; opacity: 0.45; }
+.level-tile:disabled .level-tile-n { color: #999; }
+
+/* --- play screen chrome ---------------------------------------------- */
+.play-head {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%; max-width: 560px; margin-bottom: 16px;
+}
+.btn-back { padding: 7px 12px; font-size: 12px; }
+.play-title { font-size: 14px; font-weight: 700; color: #666; }
+
+.results-best { margin-top: 6px; font-size: 12px; font-weight: 700; color: var(--green); }
+.results-actions { margin-top: 16px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
 /* Live solve stats. Sits directly above the grid so the clock is visible
    without looking away from the puzzle. */
 .statsbar {

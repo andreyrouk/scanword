@@ -110,6 +110,66 @@ saved puzzle only stores `rows`/`cols`/`isClue`/`words`; `clueCells` is
 fully derived from `words` (`buildClueCells()` in `js/generator.js`), so
 it's rebuilt on load instead of duplicated in the file.
 
+Clue text is stored inside each level file rather than looked up from the
+dictionary at play time, which keeps a level self-contained and immune to
+later dictionary edits - but also means a clue fixed in
+`data/dictionary.js` is invisible to levels already on disk. Close that
+gap with:
+
+```
+node tools/resync-level-clues.mjs          # report drift
+node tools/resync-level-clues.mjs --fix    # rewrite levels in place
+```
+
+## The campaign ladder
+
+`tools/build-ladder.mjs` scores every generated level and emits
+`data/levels/ladder.json`: the ordered campaign, easiest first.
+
+```
+node tools/build-ladder.mjs --limit 100
+```
+
+Difficulty is a **provisional proxy**, not a measurement - nobody has
+played these yet. It's a weighted blend of four things we can compute,
+picked because they actually spread across the corpus: word count
+(0.40 - widest spread, so it carries the most), share of rare or
+unlisted answers (0.30), crossing density inverted since more crossings
+hand the player more free letters (0.15), and average answer length
+(0.15). Each is min-max normalised first, or the signal with the largest
+raw numbers would dominate regardless of its weight.
+
+The honest caveat: the frequency list only covers ~32% of dictionary
+words, so "rare" conflates *genuinely obscure* with *absent from a noisy
+corpus*. Both push a level later in the ladder, which is the right
+direction, but it is not a true difficulty measure. Once real completion
+times exist they should replace these weights outright - players are the
+only reliable calibration, and the scoring system already records exactly
+the data needed to do it.
+
+A level's ladder position also decides its scoring tier (first third
+easy, then medium, then hard) rather than the folder it was generated
+into, so the multiplier a player receives matches the difficulty they
+actually faced.
+
+## Progress
+
+`js/progress.js` keeps campaign progress in `localStorage` - stars, best
+points, best time, and hint count per level. No accounts, no backend, no
+network: everything the campaign needs is per-device data no server has
+to arbitrate. Only the future daily leaderboard genuinely requires one,
+because that's the only place results are compared between players and
+therefore worth cheating at.
+
+Best values are tracked per field, not per attempt: stars, points and
+time can each come from a different run (a cautious hint-free solve earns
+the stars, a later confident replay sets the time). Unlocking is
+sequential - finishing a level opens the next - deliberately rather than
+star-gated, since a star gate can strand a player who finished everything
+but can't reach the threshold, which reads as punishment rather than
+challenge. Storage failures (Safari private mode, exhausted quota) fall
+back to in-memory rather than breaking the game.
+
 ## Building a bigger dictionary
 
 `tools/` holds the word-list pipeline. It is source-agnostic in shape but

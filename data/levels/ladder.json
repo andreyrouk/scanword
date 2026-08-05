@@ -1,0 +1,651 @@
+{
+  "generated": "2026-08-05T01:47:06.836Z",
+  "weights": {
+    "words": 0.4,
+    "rare": 0.3,
+    "crossings": 0.15,
+    "avgLen": 0.15
+  },
+  "count": 71,
+  "levels": [
+    {
+      "n": 1,
+      "file": "easy/6x7-019.json",
+      "rows": 6,
+      "cols": 7,
+      "words": 12,
+      "tier": "easy",
+      "difficulty": 0.2337
+    },
+    {
+      "n": 2,
+      "file": "easy/7x6-038.json",
+      "rows": 7,
+      "cols": 6,
+      "words": 12,
+      "tier": "easy",
+      "difficulty": 0.2937
+    },
+    {
+      "n": 3,
+      "file": "easy/6x6-024.json",
+      "rows": 6,
+      "cols": 6,
+      "words": 10,
+      "tier": "easy",
+      "difficulty": 0.3242
+    },
+    {
+      "n": 4,
+      "file": "easy/8x6-015.json",
+      "rows": 8,
+      "cols": 6,
+      "words": 13,
+      "tier": "easy",
+      "difficulty": 0.326
+    },
+    {
+      "n": 5,
+      "file": "easy/7x7-022.json",
+      "rows": 7,
+      "cols": 7,
+      "words": 15,
+      "tier": "easy",
+      "difficulty": 0.3472
+    },
+    {
+      "n": 6,
+      "file": "easy/6x6-009.json",
+      "rows": 6,
+      "cols": 6,
+      "words": 10,
+      "tier": "easy",
+      "difficulty": 0.35
+    },
+    {
+      "n": 7,
+      "file": "easy/7x7-006.json",
+      "rows": 7,
+      "cols": 7,
+      "words": 15,
+      "tier": "easy",
+      "difficulty": 0.3528
+    },
+    {
+      "n": 8,
+      "file": "easy/8x7-016.json",
+      "rows": 8,
+      "cols": 7,
+      "words": 17,
+      "tier": "easy",
+      "difficulty": 0.3553
+    },
+    {
+      "n": 9,
+      "file": "easy/6x8-026.json",
+      "rows": 6,
+      "cols": 8,
+      "words": 15,
+      "tier": "easy",
+      "difficulty": 0.3558
+    },
+    {
+      "n": 10,
+      "file": "easy/7x7-014.json",
+      "rows": 7,
+      "cols": 7,
+      "words": 15,
+      "tier": "easy",
+      "difficulty": 0.3634
+    },
+    {
+      "n": 11,
+      "file": "easy/7x7-025.json",
+      "rows": 7,
+      "cols": 7,
+      "words": 15,
+      "tier": "easy",
+      "difficulty": 0.3712
+    },
+    {
+      "n": 12,
+      "file": "easy/6x8-021.json",
+      "rows": 6,
+      "cols": 8,
+      "words": 15,
+      "tier": "easy",
+      "difficulty": 0.3798
+    },
+    {
+      "n": 13,
+      "file": "easy/7x6-023.json",
+      "rows": 7,
+      "cols": 6,
+      "words": 12,
+      "tier": "easy",
+      "difficulty": 0.3837
+    },
+    {
+      "n": 14,
+      "file": "easy/6x6-000.json",
+      "rows": 6,
+      "cols": 6,
+      "words": 10,
+      "tier": "easy",
+      "difficulty": 0.386
+    },
+    {
+      "n": 15,
+      "file": "easy/6x6-036.json",
+      "rows": 6,
+      "cols": 6,
+      "words": 10,
+      "tier": "easy",
+      "difficulty": 0.386
+    },
+    {
+      "n": 16,
+      "file": "easy/7x7-007.json",
+      "rows": 7,
+      "cols": 7,
+      "words": 15,
+      "tier": "easy",
+      "difficulty": 0.3952
+    },
+    {
+      "n": 17,
+      "file": "easy/7x7-013.json",
+      "rows": 7,
+      "cols": 7,
+      "words": 15,
+      "tier": "easy",
+      "difficulty": 0.4114
+    },
+    {
+      "n": 18,
+      "file": "easy/7x7-003.json",
+      "rows": 7,
+      "cols": 7,
+      "words": 15,
+      "tier": "easy",
+      "difficulty": 0.4192
+    },
+    {
+      "n": 19,
+      "file": "easy/7x7-010.json",
+      "rows": 7,
+      "cols": 7,
+      "words": 15,
+      "tier": "easy",
+      "difficulty": 0.4192
+    },
+    {
+      "n": 20,
+      "file": "medium/8x8-008.json",
+      "rows": 8,
+      "cols": 8,
+      "words": 19,
+      "tier": "easy",
+      "difficulty": 0.4193
+    },
+    {
+      "n": 21,
+      "file": "easy/6x6-004.json",
+      "rows": 6,
+      "cols": 6,
+      "words": 10,
+      "tier": "easy",
+      "difficulty": 0.4209
+    },
+    {
+      "n": 22,
+      "file": "easy/6x6-012.json",
+      "rows": 6,
+      "cols": 6,
+      "words": 10,
+      "tier": "easy",
+      "difficulty": 0.422
+    },
+    {
+      "n": 23,
+      "file": "easy/6x6-039.json",
+      "rows": 6,
+      "cols": 6,
+      "words": 10,
+      "tier": "easy",
+      "difficulty": 0.422
+    },
+    {
+      "n": 24,
+      "file": "easy/6x6-005.json",
+      "rows": 6,
+      "cols": 6,
+      "words": 9,
+      "tier": "easy",
+      "difficulty": 0.4239
+    },
+    {
+      "n": 25,
+      "file": "easy/7x6-031.json",
+      "rows": 7,
+      "cols": 6,
+      "words": 12,
+      "tier": "medium",
+      "difficulty": 0.4293
+    },
+    {
+      "n": 26,
+      "file": "easy/6x6-020.json",
+      "rows": 6,
+      "cols": 6,
+      "words": 10,
+      "tier": "medium",
+      "difficulty": 0.4322
+    },
+    {
+      "n": 27,
+      "file": "easy/7x7-008.json",
+      "rows": 7,
+      "cols": 7,
+      "words": 15,
+      "tier": "medium",
+      "difficulty": 0.4432
+    },
+    {
+      "n": 28,
+      "file": "easy/7x6-029.json",
+      "rows": 7,
+      "cols": 6,
+      "words": 12,
+      "tier": "medium",
+      "difficulty": 0.4437
+    },
+    {
+      "n": 29,
+      "file": "easy/8x6-033.json",
+      "rows": 8,
+      "cols": 6,
+      "words": 13,
+      "tier": "medium",
+      "difficulty": 0.4457
+    },
+    {
+      "n": 30,
+      "file": "medium/9x9-001.json",
+      "rows": 9,
+      "cols": 9,
+      "words": 27,
+      "tier": "medium",
+      "difficulty": 0.4483
+    },
+    {
+      "n": 31,
+      "file": "medium/8x7-013.json",
+      "rows": 8,
+      "cols": 7,
+      "words": 17,
+      "tier": "medium",
+      "difficulty": 0.452
+    },
+    {
+      "n": 32,
+      "file": "easy/6x7-030.json",
+      "rows": 6,
+      "cols": 7,
+      "words": 12,
+      "tier": "medium",
+      "difficulty": 0.4548
+    },
+    {
+      "n": 33,
+      "file": "easy/6x6-032.json",
+      "rows": 6,
+      "cols": 6,
+      "words": 10,
+      "tier": "medium",
+      "difficulty": 0.4558
+    },
+    {
+      "n": 34,
+      "file": "medium/8x8-007.json",
+      "rows": 8,
+      "cols": 8,
+      "words": 19,
+      "tier": "medium",
+      "difficulty": 0.4649
+    },
+    {
+      "n": 35,
+      "file": "medium/7x8-014.json",
+      "rows": 7,
+      "cols": 8,
+      "words": 16,
+      "tier": "medium",
+      "difficulty": 0.4721
+    },
+    {
+      "n": 36,
+      "file": "medium/8x8-004.json",
+      "rows": 8,
+      "cols": 8,
+      "words": 19,
+      "tier": "medium",
+      "difficulty": 0.4727
+    },
+    {
+      "n": 37,
+      "file": "easy/7x6-040.json",
+      "rows": 7,
+      "cols": 6,
+      "words": 12,
+      "tier": "medium",
+      "difficulty": 0.4737
+    },
+    {
+      "n": 38,
+      "file": "medium/8x8-006.json",
+      "rows": 8,
+      "cols": 8,
+      "words": 19,
+      "tier": "medium",
+      "difficulty": 0.4804
+    },
+    {
+      "n": 39,
+      "file": "easy/6x8-027.json",
+      "rows": 6,
+      "cols": 8,
+      "words": 14,
+      "tier": "medium",
+      "difficulty": 0.4927
+    },
+    {
+      "n": 40,
+      "file": "easy/6x6-035.json",
+      "rows": 6,
+      "cols": 6,
+      "words": 10,
+      "tier": "medium",
+      "difficulty": 0.494
+    },
+    {
+      "n": 41,
+      "file": "easy/8x7-037.json",
+      "rows": 8,
+      "cols": 7,
+      "words": 16,
+      "tier": "medium",
+      "difficulty": 0.4946
+    },
+    {
+      "n": 42,
+      "file": "medium/8x8-000.json",
+      "rows": 8,
+      "cols": 8,
+      "words": 19,
+      "tier": "medium",
+      "difficulty": 0.4994
+    },
+    {
+      "n": 43,
+      "file": "easy/7x6-017.json",
+      "rows": 7,
+      "cols": 6,
+      "words": 12,
+      "tier": "medium",
+      "difficulty": 0.5037
+    },
+    {
+      "n": 44,
+      "file": "easy/6x6-001.json",
+      "rows": 6,
+      "cols": 6,
+      "words": 9,
+      "tier": "medium",
+      "difficulty": 0.5039
+    },
+    {
+      "n": 45,
+      "file": "medium/9x8-016.json",
+      "rows": 9,
+      "cols": 8,
+      "words": 21,
+      "tier": "medium",
+      "difficulty": 0.5111
+    },
+    {
+      "n": 46,
+      "file": "medium/9x9-009.json",
+      "rows": 9,
+      "cols": 9,
+      "words": 25,
+      "tier": "medium",
+      "difficulty": 0.515
+    },
+    {
+      "n": 47,
+      "file": "medium/9x9-011.json",
+      "rows": 9,
+      "cols": 9,
+      "words": 25,
+      "tier": "medium",
+      "difficulty": 0.5186
+    },
+    {
+      "n": 48,
+      "file": "easy/6x8-034.json",
+      "rows": 6,
+      "cols": 8,
+      "words": 13,
+      "tier": "medium",
+      "difficulty": 0.5199
+    },
+    {
+      "n": 49,
+      "file": "medium/9x9-003.json",
+      "rows": 9,
+      "cols": 9,
+      "words": 25,
+      "tier": "hard",
+      "difficulty": 0.5279
+    },
+    {
+      "n": 50,
+      "file": "medium/9x9-005.json",
+      "rows": 9,
+      "cols": 9,
+      "words": 24,
+      "tier": "hard",
+      "difficulty": 0.5391
+    },
+    {
+      "n": 51,
+      "file": "easy/6x6-011.json",
+      "rows": 6,
+      "cols": 6,
+      "words": 9,
+      "tier": "hard",
+      "difficulty": 0.5439
+    },
+    {
+      "n": 52,
+      "file": "easy/8x6-018.json",
+      "rows": 8,
+      "cols": 6,
+      "words": 13,
+      "tier": "hard",
+      "difficulty": 0.5475
+    },
+    {
+      "n": 53,
+      "file": "medium/8x9-015.json",
+      "rows": 8,
+      "cols": 9,
+      "words": 21,
+      "tier": "hard",
+      "difficulty": 0.552
+    },
+    {
+      "n": 54,
+      "file": "medium/9x9-002.json",
+      "rows": 9,
+      "cols": 9,
+      "words": 24,
+      "tier": "hard",
+      "difficulty": 0.5574
+    },
+    {
+      "n": 55,
+      "file": "hard/9x8-010.json",
+      "rows": 9,
+      "cols": 8,
+      "words": 22,
+      "tier": "hard",
+      "difficulty": 0.558
+    },
+    {
+      "n": 56,
+      "file": "medium/10x9-017.json",
+      "rows": 10,
+      "cols": 9,
+      "words": 28,
+      "tier": "hard",
+      "difficulty": 0.563
+    },
+    {
+      "n": 57,
+      "file": "medium/9x9-010.json",
+      "rows": 9,
+      "cols": 9,
+      "words": 25,
+      "tier": "hard",
+      "difficulty": 0.5776
+    },
+    {
+      "n": 58,
+      "file": "easy/6x6-002.json",
+      "rows": 6,
+      "cols": 6,
+      "words": 9,
+      "tier": "hard",
+      "difficulty": 0.5839
+    },
+    {
+      "n": 59,
+      "file": "easy/6x6-028.json",
+      "rows": 6,
+      "cols": 6,
+      "words": 9,
+      "tier": "hard",
+      "difficulty": 0.5839
+    },
+    {
+      "n": 60,
+      "file": "hard/10x10-000.json",
+      "rows": 10,
+      "cols": 10,
+      "words": 29,
+      "tier": "hard",
+      "difficulty": 0.5888
+    },
+    {
+      "n": 61,
+      "file": "hard/11x8-008.json",
+      "rows": 11,
+      "cols": 8,
+      "words": 27,
+      "tier": "hard",
+      "difficulty": 0.5905
+    },
+    {
+      "n": 62,
+      "file": "hard/12x9-011.json",
+      "rows": 12,
+      "cols": 9,
+      "words": 32,
+      "tier": "hard",
+      "difficulty": 0.6493
+    },
+    {
+      "n": 63,
+      "file": "hard/10x10-005.json",
+      "rows": 10,
+      "cols": 10,
+      "words": 29,
+      "tier": "hard",
+      "difficulty": 0.6557
+    },
+    {
+      "n": 64,
+      "file": "hard/10x10-002.json",
+      "rows": 10,
+      "cols": 10,
+      "words": 30,
+      "tier": "hard",
+      "difficulty": 0.6603
+    },
+    {
+      "n": 65,
+      "file": "hard/11x9-006.json",
+      "rows": 11,
+      "cols": 9,
+      "words": 28,
+      "tier": "hard",
+      "difficulty": 0.6634
+    },
+    {
+      "n": 66,
+      "file": "medium/9x11-012.json",
+      "rows": 9,
+      "cols": 11,
+      "words": 31,
+      "tier": "hard",
+      "difficulty": 0.6668
+    },
+    {
+      "n": 67,
+      "file": "hard/10x10-001.json",
+      "rows": 10,
+      "cols": 10,
+      "words": 30,
+      "tier": "hard",
+      "difficulty": 0.6863
+    },
+    {
+      "n": 68,
+      "file": "hard/11x10-009.json",
+      "rows": 11,
+      "cols": 10,
+      "words": 31,
+      "tier": "hard",
+      "difficulty": 0.6889
+    },
+    {
+      "n": 69,
+      "file": "hard/14x8-007.json",
+      "rows": 14,
+      "cols": 8,
+      "words": 34,
+      "tier": "hard",
+      "difficulty": 0.6918
+    },
+    {
+      "n": 70,
+      "file": "hard/11x11-003.json",
+      "rows": 11,
+      "cols": 11,
+      "words": 36,
+      "tier": "hard",
+      "difficulty": 0.6943
+    },
+    {
+      "n": 71,
+      "file": "hard/11x11-004.json",
+      "rows": 11,
+      "cols": 11,
+      "words": 34,
+      "tier": "hard",
+      "difficulty": 0.8102
+    }
+  ]
+}

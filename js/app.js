@@ -283,16 +283,47 @@ function finishPuzzle() {
     completed: true,
   });
 
-  showResults(result, secs);
+  // Campaign levels record progress; quick-play and custom grids don't,
+  // since they have no ladder position to attach a record to.
+  let record = null;
+  if (currentLevelN !== null) {
+    record = recordLevelResult(currentLevelN, {
+      stars: result.stars,
+      points: result.points,
+      timeSec: Math.round(secs),
+      hints: hintsUsed,
+      completed: true,
+    });
+    renderLadder();
+    updateProgressSummary();
+  }
+
+  showResults(result, secs, record);
   setStatus("✓ Все правильно!");
 }
 
-function showResults(result, secs) {
+function showResults(result, secs, record) {
   document.getElementById("resultsStars").textContent = "★".repeat(result.stars) + "☆".repeat(3 - result.stars);
   document.getElementById("resultsPerfect").hidden = !result.perfect;
   document.getElementById("resultsPoints").textContent = result.points.toLocaleString("uk-UA");
   document.getElementById("resultsMeta").textContent =
     `Час ${formatTime(secs)} · ціль ${formatTime(result.parSeconds)} · підказок ${hintsUsed}`;
+
+  const bestEl = document.getElementById("resultsBest");
+  if (record && record.improved) {
+    bestEl.textContent = "Новий рекорд!";
+    bestEl.hidden = false;
+  } else if (record) {
+    bestEl.textContent = `Ваш рекорд: ${record.merged.points.toLocaleString("uk-UA")} очок`;
+    bestEl.hidden = false;
+  } else {
+    bestEl.hidden = true;
+  }
+
+  // Only offer "next" when there is one and it's now reachable.
+  const nextBtn = document.getElementById("nextLevelBtn");
+  nextBtn.hidden = !(currentLevelN !== null && ladder && currentLevelN < ladder.levels.length);
+
   resultsEl.hidden = false;
 }
 
@@ -490,6 +521,9 @@ async function runGenerate() {
   colsInput.value = cols;
 
   generateBtn.disabled = true;
+  // A hand-rolled grid isn't a ladder level either.
+  currentLevelN = null;
+  showPlay("Своя сітка");
   setStatus("Генерую сітку… (для великих сіток це може зайняти кілька секунд)");
   gridEl.innerHTML = "";
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -566,6 +600,9 @@ async function loadLevel(difficulty) {
     // Set before renderPuzzle: it starts the clock, and finishPuzzle reads
     // this for the score multiplier.
     currentDifficulty = difficulty;
+    // Quick play has no ladder position, so nothing is recorded for it.
+    currentLevelN = null;
+    showPlay("Швидка гра");
     renderPuzzle({
       rows: saved.rows,
       cols: saved.cols,
@@ -635,4 +672,124 @@ document.getElementById("resetBtn").addEventListener("click", () => {
 
 document.getElementById("hintBtn").addEventListener("click", useHint);
 
-runGenerate();
+// --- campaign ladder ---------------------------------------------------
+const menuScreen = document.getElementById("menuScreen");
+const playScreen = document.getElementById("playScreen");
+const ladderEl = document.getElementById("ladder");
+let ladder = null;
+let currentLevelN = null; // null = quick play / custom grid, so no record is kept
+
+function showMenu() {
+  // Leaving a puzzle mid-solve must stop the clock, or the abandoned run
+  // keeps accruing time and poisons the next result recorded for it.
+  stopTimer();
+  playScreen.hidden = true;
+  menuScreen.hidden = false;
+  renderLadder();
+  updateProgressSummary();
+}
+
+function showPlay(title) {
+  menuScreen.hidden = true;
+  playScreen.hidden = false;
+  document.getElementById("playTitle").textContent = title || "";
+}
+
+function updateProgressSummary() {
+  if (!ladder) return;
+  const total = ladder.levels.length;
+  document.getElementById("totalStars").textContent = String(totalStars());
+  document.getElementById("maxStars").textContent = String(total * 3);
+  document.getElementById("progressSub").textContent = `пройдено ${completedCount()} з ${total}`;
+}
+
+function renderLadder() {
+  if (!ladder) return;
+  const frag = document.createDocumentFragment();
+
+  ladder.levels.forEach((lvl) => {
+    const prog = getLevelProgress(lvl.n);
+    const unlocked = isUnlocked(lvl.n);
+
+    const btn = document.createElement("button");
+    btn.className = "level-tile";
+    if (prog && prog.completed) btn.classList.add("done");
+    // Highlight the level the player is actually up to, so a long ladder
+    // has an obvious entry point instead of making them hunt for it.
+    if (unlocked && !(prog && prog.completed)) btn.classList.add("current");
+    btn.disabled = !unlocked;
+    btn.title = unlocked ? `${lvl.rows}x${lvl.cols}, ${lvl.words} слів` : "Пройдіть попередній рівень";
+
+    // Locked tiles still show their number rather than a padlock: a wall
+    // of emoji locks reads loud against the rest of the design, and seeing
+    // the numbers ahead is more useful than being told, 70 times, that
+    // they're locked. The dimmed disabled state already says that.
+    const n = document.createElement("span");
+    n.className = "level-tile-n";
+    n.textContent = String(lvl.n);
+    btn.appendChild(n);
+
+    const stars = document.createElement("span");
+    stars.className = "level-tile-stars";
+    stars.textContent = prog && prog.stars ? "★".repeat(prog.stars) : "";
+    btn.appendChild(stars);
+
+    btn.addEventListener("click", () => loadLadderLevel(lvl.n));
+    frag.appendChild(btn);
+  });
+
+  ladderEl.innerHTML = "";
+  ladderEl.appendChild(frag);
+}
+
+async function loadLadderLevel(n) {
+  if (!ladder) return;
+  const lvl = ladder.levels.find((l) => l.n === n);
+  if (!lvl || !isUnlocked(n)) return;
+
+  showPlay(`Рівень ${n} · ${lvl.rows}×${lvl.cols}`);
+  setStatus("Завантажую рівень…");
+  gridEl.innerHTML = "";
+
+  try {
+    const res = await fetch(`data/levels/${lvl.file}`);
+    if (!res.ok) throw new Error("level fetch failed: " + res.status);
+    const saved = await res.json();
+
+    currentLevelN = n;
+    currentDifficulty = lvl.tier;
+    renderPuzzle({
+      rows: saved.rows,
+      cols: saved.cols,
+      isClue: saved.isClue,
+      words: saved.words,
+      clueCells: buildClueCells(saved.words),
+    });
+    setStatus("");
+  } catch (err) {
+    console.error(err);
+    setStatus("Не вдалося завантажити рівень.");
+  }
+}
+
+document.getElementById("backBtn").addEventListener("click", showMenu);
+document.getElementById("toMenuBtn").addEventListener("click", showMenu);
+document.getElementById("nextLevelBtn").addEventListener("click", () => {
+  if (currentLevelN !== null) loadLadderLevel(currentLevelN + 1);
+});
+
+async function initLadder() {
+  try {
+    const res = await fetch("data/levels/ladder.json");
+    if (!res.ok) throw new Error("ladder fetch failed: " + res.status);
+    ladder = await res.json();
+  } catch (err) {
+    console.error(err);
+    ladderEl.textContent = "Не вдалося завантажити рівні.";
+    return;
+  }
+  renderLadder();
+  updateProgressSummary();
+}
+
+initLadder();
