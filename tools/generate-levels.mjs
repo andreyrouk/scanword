@@ -142,10 +142,16 @@ async function main() {
     writeFileSync(`${outDir}/${file}`, JSON.stringify({ rows: result.rows, cols: result.cols, isClue: result.isClue, words: result.words }));
     manifest[difficulty].push(file);
     ok++;
+    // Persist the manifest after every level, not once at the end. A hard
+    // tier run can take 20+ minutes, and if it's interrupted (timeout,
+    // Ctrl-C, killed to retune settings) every level it produced is left
+    // on disk but absent from the manifest - invisible to the app and to
+    // build-ladder.mjs, i.e. silently wasted work. Rewriting a small JSON
+    // file once per level costs nothing next to generating one.
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
     console.log(`OK in ${Date.now() - start}ms -> ${outDir}/${file}`);
   }
 
-  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
   console.log(`\n${ok}/${count} succeeded. Manifest updated: ${manifestPath}`);
 }
 
