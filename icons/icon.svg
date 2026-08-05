@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="#2e7d46"/>
+  <g>
+    <!-- clue cell: filled, with the arrow that points at where the word starts -->
+    <rect x="118" y="118" width="128" height="128" rx="14" fill="#ffffff"/>
+    <path d="M168 182 h44 v-20 l34 30 -34 30 v-20 h-44 z" fill="#2e7d46"/>
+    <!-- letter cells the clue feeds into -->
+    <rect x="266" y="118" width="128" height="128" rx="14" fill="none" stroke="#ffffff" stroke-width="18"/>
+    <rect x="118" y="266" width="128" height="128" rx="14" fill="none" stroke="#ffffff" stroke-width="18"/>
+    <rect x="266" y="266" width="128" height="128" rx="14" fill="none" stroke="#ffffff" stroke-width="18"/>
+  </g>
+</svg>

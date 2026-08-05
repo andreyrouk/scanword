@@ -4,7 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Сканворд</title>
+<meta name="description" content="Український сканворд: 100 рівнів, сканворд дня, працює без інтернету.">
 <link rel="stylesheet" href="style.css">
+
+<!-- Installable web app: added to the home screen, launched without
+     browser chrome, and playable with no connection at all. -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#2e7d46">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<!-- iOS ignores the manifest for standalone launch and needs these. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Сканворд">
+<meta name="mobile-web-app-capable" content="yes">
 </head>
 <body>
 
@@ -104,7 +117,11 @@
 
   </div><!-- /playScreen -->
 
-  <script src="data/dictionary.js"></script>
+  <!-- data/dictionary.js is NOT loaded here on purpose: it is ~1MB, more
+       than half the app's payload, and only the custom-grid generator
+       needs it. js/app.js pulls it in on demand the first time someone
+       generates their own grid; the 100 levels and the daily play fine
+       without it. -->
   <script src="js/grid-skeleton.js"></script>
   <script src="js/word-filler.js"></script>
   <script src="js/generator.js"></script>
@@ -112,5 +129,15 @@
   <script src="js/progress.js"></script>
   <script src="js/daily.js"></script>
   <script src="js/app.js"></script>
+
+  <script>
+    // Registered after load so fetching the worker (and the ~800K it
+    // precaches) never competes with rendering the first screen.
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("sw.js").catch((err) => console.warn("SW registration failed", err));
+      });
+    }
+  </script>
 </body>
 </html>

@@ -524,6 +524,33 @@ function setStatus(text) {
 
 const generateBtn = document.getElementById("generateBtn");
 
+// The dictionary is ~1MB - more than half the app - and only the live
+// generator below needs it: the 100 ladder levels and the daily ship with
+// their words already baked in. Loading it on demand keeps the first
+// launch (and the offline install) small for the majority of players who
+// never open "своя сітка", at the cost of one wait the first time they do.
+let dictionaryPromise = null;
+
+function loadDictionary() {
+  if (typeof DICTIONARY !== "undefined") return Promise.resolve(DICTIONARY);
+  if (!dictionaryPromise) {
+    dictionaryPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "data/dictionary.js";
+      script.onload = () => resolve(DICTIONARY);
+      script.onerror = () => {
+        // Clear the cached promise so a failure (offline, blocked) can be
+        // retried by pressing the button again rather than being sticky
+        // for the rest of the session.
+        dictionaryPromise = null;
+        reject(new Error("dictionary load failed"));
+      };
+      document.head.appendChild(script);
+    });
+  }
+  return dictionaryPromise;
+}
+
 async function runGenerate() {
   const rows = Math.max(5, Math.min(10, parseInt(rowsInput.value, 10) || 6));
   const cols = Math.max(5, Math.min(10, parseInt(colsInput.value, 10) || 6));
@@ -553,7 +580,16 @@ async function runGenerate() {
   currentDifficulty = dim >= 10 ? "hard" : dim >= 8 ? "medium" : "easy";
 
   try {
-    const result = await generatePuzzle(rows, cols, DICTIONARY, { timeBudgetMs });
+    let dictionary;
+    try {
+      dictionary = await loadDictionary();
+    } catch (err) {
+      console.error(err);
+      setStatus("Не вдалося завантажити словник. Перевірте з'єднання — рівні працюють і без нього.");
+      return;
+    }
+
+    const result = await generatePuzzle(rows, cols, dictionary, { timeBudgetMs });
     if (!result) {
       setStatus("Не вдалося згенерувати сітку такого розміру. Спробуйте менший розмір.");
       return;
@@ -886,6 +922,10 @@ async function initLadder() {
   renderLadder();
   updateProgressSummary();
   updateHomeSummary();
+
+  // The installed app's "Сканворд дня" shortcut launches ./?screen=daily.
+  // Handled here rather than at startup because it needs the ladder.
+  if (new URLSearchParams(location.search).get("screen") === "daily") loadDaily();
 }
 
 initLadder();

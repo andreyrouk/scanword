@@ -1,7 +1,8 @@
 # Сканворд
 
 A Ukrainian scanword (сканворд) web app. Standalone HTML/CSS/JS, no build
-step, deployable straight to GitHub Pages.
+step, deployable straight to GitHub Pages - and installable to a phone's
+home screen, where it plays completely offline.
 
 Unlike a standard crossword, a scanword has no separate clue list: every
 letter cell is part of a word, and each word's clue sits in a nearby cell
@@ -20,6 +21,11 @@ python3 -m http.server 8000
 
 Then open `http://localhost:8000/`. Deploying to GitHub Pages: Settings →
 Pages → Source: `main` branch, `/ (root)`.
+
+Note that the service worker only registers over `http://localhost`,
+`http://127.0.0.1` or HTTPS - browsers require a secure context for it, and
+`file://` isn't one. Opening `index.html` directly still plays fine, it
+just won't install or cache.
 
 ## How it works
 
@@ -170,6 +176,45 @@ but can't reach the threshold, which reads as punishment rather than
 challenge. Storage failures (Safari private mode, exhausted quota) fall
 back to in-memory rather than breaking the game.
 
+## Installing it as an app
+
+The app is a PWA: `manifest.webmanifest` plus `sw.js` make it installable
+to a phone's home screen (Chrome's "Install app", iOS Safari's "Add to
+Home Screen"), where it launches without browser chrome and works with no
+connection at all. `tools/make-icons.mjs` renders the icons.
+
+Caching is split by what the file actually is. Level JSON, icons and the
+dictionary are immutable - once published their contents never change, so
+they're served cache-first and never revalidated. The app shell (HTML,
+CSS, JS, the ladder) is stale-while-revalidate: instant from cache, with
+a background refresh so a fix lands on the next launch instead of never.
+Bump `CACHE_VERSION` in `sw.js` when the precache list changes; activate
+deletes every older cache.
+
+The ~1MB `data/dictionary.js` is deliberately **not** precached, and no
+longer loads at startup either - `js/app.js` injects it on demand. Only
+the custom-grid generator needs it; the 100 ladder levels and the daily
+ship with their words already baked in, so most players never pay for it.
+That splits the payload:
+
+| | |
+|---|---|
+| shell + ladder + icons | ~129K (blocks first render) |
+| 100 level files | ~472K (precached in the background) |
+| **offline install** | **~602K** |
+| dictionary | ~988K, fetched only if someone opens "своя сітка" |
+
+Previously all 1.6MB was fetched on every first load.
+
+`node tools/test-pwa.mjs` verifies this end to end in Chromium: the worker
+activates, the precache holds the shell and all 100 levels but not the
+dictionary, and then - with the HTTP server actually shut down - the app
+still opens, a level loads and can be solved, and the daily works. It
+kills the origin rather than using Playwright's `setOffline`, because that
+flag doesn't apply to fetches the service worker itself makes, so a cache
+miss would quietly succeed over the network and the test would prove
+nothing.
+
 ## Building a bigger dictionary
 
 `tools/` holds the word-list pipeline. It is source-agnostic in shape but
@@ -234,8 +279,18 @@ dropping them silently:
   check) to push past the ~11x11 wall - see Current limits. Likely the
   highest-leverage next step if bigger puzzles are wanted, since neither
   more dictionary nor more offline patience clears it on their own.
-- Daily/scheduled puzzle generation (cron the batch generator, publish
-  a "today's puzzle" pointer).
+- ~~Daily puzzle~~ - done, and picked client-side from the date rather
+  than published by a server (see `js/daily.js`).
+- ~~Installable, offline-capable app~~ - done as a PWA (see Installing it
+  as an app).
+- A backend: accounts and a daily leaderboard. The only piece here that
+  genuinely needs a server - everything else is per-device data no one has
+  to arbitrate, while a leaderboard is by definition comparison between
+  players and therefore worth cheating at.
+- Store distribution (Capacitor wrap of the same PWA) if the home-screen
+  install proves not to be enough reach.
+- Rules and Options screens - the menu buttons exist and are disabled.
+- A clue-quality pass: `tools/review-clues.mjs` currently flags ~88 weak
+  clues (mechanical, over-generic, or too long to read at grid size).
 - A creation mode: let users build and publish their own puzzle with the
   same grid engine.
-- Monetized hints (reveal a letter/word) for players who get stuck.
