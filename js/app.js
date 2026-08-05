@@ -228,9 +228,22 @@ function useHint() {
   if (!word) return;
 
   const keys = word.cells.map(([r, c]) => key(r, c));
-  // First cell that isn't already correct - so a hint never burns itself
-  // on a letter the player had right, and repeated hints walk the word.
-  const idx = keys.findIndex((k, i) => !lockedCells.has(k) && inputEls[k].value !== word.answer[i]);
+  // Start at the cell the player is actually sitting on: if they asked for
+  // help, the letter they're stuck on is the one under the cursor, not the
+  // start of the word. Scanning wraps around so a hint still lands
+  // somewhere useful when the focused cell is already correct (or when
+  // nothing is focused at all), and repeated hints walk forward from
+  // there rather than re-revealing the same spot.
+  const focusedIdx = keys.indexOf(focusedKey);
+  const start = focusedIdx === -1 ? 0 : focusedIdx;
+  let idx = -1;
+  for (let n = 0; n < keys.length; n++) {
+    const i = (start + n) % keys.length;
+    if (!lockedCells.has(keys[i]) && inputEls[keys[i]].value !== word.answer[i]) {
+      idx = i;
+      break;
+    }
+  }
   if (idx === -1) return;
 
   const k = keys[idx];
@@ -242,6 +255,12 @@ function useHint() {
   selectWord(word.id, false);
   checkWordCompletion();
   updateStats();
+  // Advance the way typing does, so the player carries on from where the
+  // hint left them instead of having to click back into the grid.
+  if (!lockedWords.has(word.id)) {
+    const next = nextEditableInWord(word.id, k);
+    if (next) focusCell(next);
+  }
   if (!puzzleSolved) setStatus(`Відкрито літеру. Використано підказок: ${hintsUsed}.`);
 }
 
