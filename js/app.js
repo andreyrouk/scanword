@@ -139,7 +139,16 @@ function focusCell(k) {
   focusedKey = k;
   cellEls[k].classList.add("focused");
   const input = inputEls[k];
-  input.focus();
+  // preventScroll: focusing an input normally makes the browser scroll it
+  // into view, walking every scrollable ancestor and moving the page
+  // under the player. keepCellInView below does the same job with a
+  // much smaller blast radius - one axis of one container, and only when
+  // the cell is actually off-screen.
+  try {
+    input.focus({ preventScroll: true });
+  } catch (err) {
+    input.focus();
+  }
   // Park the caret after the existing letter rather than select()-ing it.
   // select() creates a real selection range, and on iOS that pops the
   // selection magnifier and drag handles on every single tap into the
@@ -159,6 +168,67 @@ function focusCell(k) {
   // player has to swipe after every few letters.
   keepCellInView(k);
 }
+
+// Looking around the grid must never be a fight. While a cell's <input>
+// holds DOM focus the browser keeps scrolling it back into view - and on
+// a phone the keyboard is covering half the screen while it does - so
+// panning or pinching away from the word in play gets undone.
+//
+// The fix is to stop treating DOM focus as the selection. The selection
+// is app state: activeWordId, the highlight, the .focused cell and the
+// clue bar. Dropping focus the moment a pan or pinch starts leaves all of
+// that exactly as it was and costs only the caret, which the next tap
+// restores. So the player can wander anywhere, at any zoom, and the word
+// they were on is still selected and still highlighted when they come
+// back to it.
+const PAN_THRESHOLD_PX = 10;
+let touchStartPoint = null;
+
+function blurGridInput() {
+  const active = document.activeElement;
+  // Scoped to grid cells: the row/column number inputs in the custom-grid
+  // panel are ordinary form fields and must keep their focus.
+  if (active && active.tagName === "INPUT" && active.closest(".cell")) active.blur();
+}
+
+document.addEventListener(
+  "touchstart",
+  (e) => {
+    if (e.touches.length > 1) {
+      // Two fingers is a pinch, never a tap - let go of the caret now
+      // rather than after the zoom has already been fought.
+      blurGridInput();
+      touchStartPoint = null;
+      return;
+    }
+    touchStartPoint = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  },
+  { passive: true }
+);
+
+document.addEventListener(
+  "touchmove",
+  (e) => {
+    if (e.touches.length > 1) {
+      blurGridInput();
+      touchStartPoint = null;
+      return;
+    }
+    if (!touchStartPoint) return;
+    // A threshold, so that the small amount of travel in any real tap
+    // doesn't read as a pan and close the keyboard mid-word.
+    const t = e.touches[0];
+    if (Math.abs(t.clientX - touchStartPoint.x) > PAN_THRESHOLD_PX || Math.abs(t.clientY - touchStartPoint.y) > PAN_THRESHOLD_PX) {
+      blurGridInput();
+      touchStartPoint = null;
+    }
+  },
+  { passive: true }
+);
+
+document.addEventListener("touchend", () => {
+  touchStartPoint = null;
+}, { passive: true });
 
 function handleCellClick(k) {
   const ids = cellWordsMap[k];

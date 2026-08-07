@@ -96,6 +96,18 @@ still only gets ~9px. The bar above the grid shows the clue for the word
 in play at full size, with its direction and letter count, so reading a
 clue never requires zooming.
 
+**Selection is app state, not DOM focus.** While a cell's `<input>` holds
+focus the browser keeps scrolling it back into view, so panning or
+pinching away from the word in play gets undone - the player is pinned to
+wherever the caret is. So a pan (past `PAN_THRESHOLD_PX`) or any
+two-finger touch blurs the input, while `activeWordId`, the highlight,
+the `.focused` cell and the clue bar all stay exactly as they were. The
+player can wander anywhere at any zoom and the word is still selected
+when they come back; the next tap restores the caret. `focusCell` also
+uses `focus({ preventScroll: true })` for the same reason - the browser's
+own scroll-into-view walks every scrollable ancestor, where
+`keepCellInView` moves one axis of one container and only when needed.
+
 ## Touch input
 
 Letter cells hold a real `<input>`, which needs care on a phone. The UA

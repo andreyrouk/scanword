@@ -324,6 +324,112 @@ check(
   plurals.join(", ")
 );
 
+// --- panning and pinching never cost the selection --------------------
+// The player must be able to wander anywhere, at any zoom, and come back
+// to find the word they were on still selected. That means DOM focus is
+// released the moment a pan or pinch starts (otherwise the browser keeps
+// dragging the focused input back into view) while every bit of the
+// selection - active word, highlight, focused cell, clue bar - survives.
+async function touchPan(selector, dx, dy) {
+  const box = await page.locator(selector).first().boundingBox();
+  const x = Math.round(box.x + box.width / 2);
+  const y = Math.round(box.y + box.height / 2);
+  await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+  for (let i = 1; i <= 10; i++) {
+    await client.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x: x + (dx / 10) * i, y: y + (dy / 10) * i }],
+    });
+    await page.waitForTimeout(16);
+  }
+  await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await page.waitForTimeout(300);
+}
+
+const selectionBefore = await page.evaluate(() => {
+  const w = puzzle.words.find((x) => !lockedWords.has(x.id));
+  selectWord(w.id, true);
+  return { wordId: activeWordId, focusedKey, clue: document.getElementById("cluebarText").textContent };
+});
+check("a word is selected and focused to begin with", await page.evaluate(() => document.activeElement.tagName === "INPUT"));
+
+await touchPan("#grid .cell.letter", -140, -60);
+
+const afterPan = await page.evaluate((before) => ({
+  stillFocusedInput: document.activeElement && document.activeElement.tagName === "INPUT" && !!document.activeElement.closest(".cell"),
+  wordId: activeWordId,
+  focusedKey,
+  clue: document.getElementById("cluebarText").textContent,
+  barVisible: !document.getElementById("cluebar").hidden,
+  highlighted: document.querySelectorAll("#grid .cell.highlight").length,
+  focusedMark: document.querySelectorAll("#grid .cell.focused").length,
+  scrolled: document.querySelector(".grid-wrap").scrollLeft,
+  same: activeWordId === before.wordId && focusedKey === before.focusedKey,
+}), selectionBefore);
+
+check("panning releases the caret, so the browser stops chasing it", !afterPan.stillFocusedInput);
+check("the pan actually moved the grid", afterPan.scrolled > 0, `scrollLeft ${afterPan.scrolled}`);
+check("the selected word survives a pan", afterPan.same, `${afterPan.wordId} / ${afterPan.focusedKey}`);
+check("the word stays highlighted", afterPan.highlighted > 0 && afterPan.focusedMark === 1);
+check("the clue bar keeps showing that word's clue", afterPan.barVisible && afterPan.clue === selectionBefore.clue);
+
+// And the grid must stay where it was put - no snap-back to the caret.
+const settled = await page.evaluate(() => document.querySelector(".grid-wrap").scrollLeft);
+await page.waitForTimeout(500);
+check(
+  "the grid stays where it was panned to",
+  (await page.evaluate(() => document.querySelector(".grid-wrap").scrollLeft)) === settled,
+  "something scrolled it back"
+);
+
+// A pinch is two fingers and is never a tap: drop the caret immediately.
+await page.evaluate(() => {
+  const w = puzzle.words.find((x) => !lockedWords.has(x.id));
+  selectWord(w.id, true);
+});
+await client.send("Input.dispatchTouchEvent", {
+  type: "touchStart",
+  touchPoints: [
+    { x: 120, y: 400, id: 1 },
+    { x: 220, y: 400, id: 2 },
+  ],
+});
+await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+await page.waitForTimeout(100);
+const afterPinch = await page.evaluate(() => ({
+  focused: document.activeElement && document.activeElement.tagName === "INPUT" && !!document.activeElement.closest(".cell"),
+  wordId: activeWordId,
+  barVisible: !document.getElementById("cluebar").hidden,
+}));
+check("pinching releases the caret too", !afterPinch.focused);
+check("pinching keeps the selection", afterPinch.wordId !== null && afterPinch.barVisible);
+
+// A tap has some travel in it; that must not be mistaken for a pan and
+// close the keyboard on someone who is trying to type.
+await page.evaluate(() => {
+  const w = puzzle.words.find((x) => !lockedWords.has(x.id));
+  selectWord(w.id, true);
+});
+await touchPan("#grid .cell.letter", 4, 3);
+check(
+  "a slightly sloppy tap keeps the caret",
+  await page.evaluate(() => document.activeElement && document.activeElement.tagName === "INPUT" && !!document.activeElement.closest(".cell")),
+  "the pan threshold is too tight"
+);
+
+// Tapping back in resumes typing where the player left off.
+const resumed = await page.evaluate(() => {
+  const w = puzzle.words.find((x) => !lockedWords.has(x.id));
+  const [r, c] = w.cells[0];
+  cellEls[r + "-" + c].dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  const focused = document.activeElement === inputEls[r + "-" + c];
+  document.activeElement.value = w.answer[0];
+  document.activeElement.dispatchEvent(new Event("input", { bubbles: true }));
+  return { focused, wrote: inputEls[r + "-" + c].value === w.answer[0] };
+});
+check("tapping a cell after panning restores the caret", resumed.focused);
+check("and typing works again immediately", resumed.wrote);
+
 // A solved word is no longer "in play", so the bar must clear.
 const cleared = await page.evaluate(() => {
   const w = puzzle.words.find((x) => !lockedWords.has(x.id)) || puzzle.words[0];
