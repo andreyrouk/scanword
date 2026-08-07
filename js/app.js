@@ -111,8 +111,22 @@ function focusCell(k) {
   if (focusedKey && cellEls[focusedKey]) cellEls[focusedKey].classList.remove("focused");
   focusedKey = k;
   cellEls[k].classList.add("focused");
-  inputEls[k].focus();
-  inputEls[k].select();
+  const input = inputEls[k];
+  input.focus();
+  // Park the caret after the existing letter rather than select()-ing it.
+  // select() creates a real selection range, and on iOS that pops the
+  // selection magnifier and drag handles on every single tap into the
+  // grid. A collapsed caret does not, and typing still overwrites,
+  // because the input has no maxLength and handleInput keeps only the
+  // last character typed - see renderPuzzle.
+  const end = input.value.length;
+  try {
+    input.setSelectionRange(end, end);
+  } catch (err) {
+    // Some browsers reject setSelectionRange on certain input types;
+    // the caret lands somewhere sane anyway, so this is not worth failing
+    // a tap over.
+  }
 }
 
 function handleCellClick(k) {
@@ -141,12 +155,22 @@ function nextEditableInWord(wordId, fromKey) {
   return null;
 }
 
+const NON_LETTER = /[^a-zA-Zа-яА-ЯіІїЇєЄґҐ'ʼ]/g;
+
 function handleInput(e, k) {
   if (lockedCells.has(k)) {
     e.target.value = e.target.dataset.letter;
     return;
   }
-  let val = e.target.value.replace(/[^a-zA-Zа-яА-ЯіІїЇєЄґҐ'ʼ]/g, "").slice(-1).toUpperCase();
+  // Which character survives when a filled cell receives another one: the
+  // one the browser reports as just inserted, not simply the last in the
+  // field. The caret can legitimately sit *before* the existing letter -
+  // arrow keys, or a tap the browser placed itself - and "keep the last
+  // character" would then keep the old letter and silently swallow the
+  // new one. Falls back to the field contents for events that report no
+  // data: deletions, and the synthetic input events useHint dispatches.
+  const inserted = typeof e.data === "string" ? e.data.replace(NON_LETTER, "") : "";
+  const val = (inserted || e.target.value.replace(NON_LETTER, "")).slice(-1).toUpperCase();
   e.target.value = val;
   if (!val) return;
   checkWordCompletion();
@@ -416,7 +440,12 @@ function renderPuzzle(p) {
       } else {
         div.className = "cell letter";
         const input = document.createElement("input");
-        input.maxLength = 1;
+        // Deliberately no maxLength. A full maxLength=1 field silently
+        // rejects the next keystroke, which is why focusCell used to
+        // select() the letter first - and that select() is what raises
+        // iOS's magnifier on every tap. Without the cap, typing into a
+        // filled cell appends and handleInput trims to the last valid
+        // character, so overwriting works from any caret position.
         input.autocomplete = "off";
         input.inputMode = "text";
         inputEls[k] = input;

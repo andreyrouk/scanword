@@ -1,0 +1,220 @@
+// Mobile grid interaction.  node tools/test-mobile.mjs
+//
+// Covers the touch-drag fix and the typing behaviour it depends on.
+//
+// What this can and cannot prove: the reported symptom is iOS Safari's
+// text-selection magnifier hijacking a drag that starts on a letter cell,
+// and no engine available here renders that UI - Chromium pans on inputs
+// where iOS selects. So these tests verify the *mechanism* (selection is
+// off on the input, no selection range is ever created by a tap) and,
+// more importantly, that the changes made to achieve it did not break
+// typing, which is where the actual regression risk lives. Confirming the
+// magnifier is gone needs a real iPhone.
+
+import { createServer } from "node:http";
+import { readFile, stat } from "node:fs/promises";
+import { extname, join, normalize } from "node:path";
+import { chromium, devices } from "/opt/node22/lib/node_modules/playwright/index.mjs";
+
+const ROOT = new URL("..", import.meta.url).pathname;
+const TYPES = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+};
+
+const server = createServer((req, res) => {
+  const path = decodeURIComponent(new URL(req.url, "http://x").pathname);
+  const file = join(ROOT, normalize(path).replace(/^(\.\.[/\\])+/, ""));
+  (async () => {
+    const target = (await stat(file)).isDirectory() ? join(file, "index.html") : file;
+    const body = await readFile(target);
+    res.writeHead(200, { "content-type": TYPES[extname(target)] || "application/octet-stream" });
+    res.end(body);
+  })().catch(() => res.writeHead(404).end("not found"));
+});
+await new Promise((r) => server.listen(0, "127.0.0.1", r));
+const base = `http://127.0.0.1:${server.address().port}/`;
+
+let passed = 0;
+const failures = [];
+const check = (name, cond, detail = "") => {
+  if (cond) passed++;
+  else failures.push(`${name}${detail ? " - " + detail : ""}`);
+};
+
+const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium", args: ["--no-sandbox"] });
+const context = await browser.newContext({ ...devices["iPhone 13"], isMobile: true, hasTouch: true });
+const page = await context.newPage();
+page.on("pageerror", (err) => failures.push("page error: " + err.message));
+
+await page.goto(base, { waitUntil: "load" });
+await page.waitForFunction(() => document.querySelectorAll("#ladder .level-tile").length === 100, null, { timeout: 20000 });
+
+// Pick the biggest level available, since a small grid on a phone needs no
+// zooming and would not exercise the thing being fixed.
+const bigN = await page.evaluate(() => ladder.levels.slice().sort((a, b) => b.rows * b.cols - a.rows * a.cols)[0].n);
+await page.evaluate((n) => {
+  // Unlock everything: this is a rendering/input test, not a progress one.
+  ladder.levels.forEach((l) => recordLevelResult(l.n, { stars: 1, points: 1, timeSec: 1, hints: 0, completed: true }));
+  loadLadderLevel(n);
+}, bigN);
+await page.waitForFunction(() => document.querySelectorAll("#grid .cell.letter").length > 0, null, { timeout: 20000 });
+
+const dims = await page.evaluate(() => ({ rows: puzzle.rows, cols: puzzle.cols }));
+
+// --- the mechanism ----------------------------------------------------
+const sel = await page.evaluate(() => {
+  const input = document.querySelector("#grid .cell.letter input");
+  const cs = getComputedStyle(input);
+  const clue = document.querySelector("#grid .cell.clue");
+  return {
+    input: cs.userSelect || cs.webkitUserSelect,
+    touchAction: cs.touchAction,
+    clue: clue ? getComputedStyle(clue).userSelect : null,
+  };
+});
+check("letter input does not take text selection", sel.input === "none", `got "${sel.input}"`);
+check(
+  "letter cells match clue cells, which already dragged fine",
+  sel.input === sel.clue,
+  `input "${sel.input}" vs clue "${sel.clue}"`
+);
+check("double-tap-to-zoom is off inside the grid", sel.touchAction === "manipulation", `got "${sel.touchAction}"`);
+
+// A tap must leave a collapsed caret, never a selection range - the range
+// is what summons the magnifier and the drag handles.
+const firstKey = await page.evaluate(() => {
+  const w = puzzle.words[0];
+  const [r, c] = w.cells[1]; // not the first cell, to catch off-by-one focus
+  return r + "-" + c;
+});
+await page.evaluate((k) => cellEls[k].dispatchEvent(new MouseEvent("click", { bubbles: true })), firstKey);
+const caret = await page.evaluate((k) => {
+  const i = inputEls[k];
+  return { start: i.selectionStart, end: i.selectionEnd, focused: document.activeElement === i };
+}, firstKey);
+check("tapping a cell focuses it", caret.focused);
+check("tapping a cell creates no selection range", caret.start === caret.end, `${caret.start}-${caret.end}`);
+
+// --- typing still works (the regression risk of removing select()) ----
+await page.keyboard.type("Ж");
+check("typing into an empty cell writes the letter", (await page.evaluate((k) => inputEls[k].value, firstKey)) === "Ж");
+
+// Re-tap the filled cell and type again: it must replace, not be ignored.
+// This is what maxLength=1 + select() used to guarantee.
+await page.evaluate((k) => cellEls[k].dispatchEvent(new MouseEvent("click", { bubbles: true })), firstKey);
+await page.keyboard.type("Ц");
+check(
+  "typing into a filled cell replaces the letter",
+  (await page.evaluate((k) => inputEls[k].value, firstKey)) === "Ц",
+  "maxLength=1 would have silently rejected this"
+);
+
+// The nastier case: caret parked at the start, which is where a tap on the
+// left half of a filled cell leaves it if focusCell did not intervene.
+await page.evaluate((k) => {
+  const i = inputEls[k];
+  i.focus();
+  i.setSelectionRange(0, 0);
+}, firstKey);
+await page.keyboard.type("Б");
+check(
+  "typing replaces even with the caret before the letter",
+  (await page.evaluate((k) => inputEls[k].value, firstKey)) === "Б",
+  "a naive slice(-1) would keep the old letter here"
+);
+
+// A cell never holds more than one character, whatever gets thrown at it.
+await page.evaluate((k) => {
+  const i = inputEls[k];
+  i.focus();
+  i.value = "СЛОВО";
+  i.dispatchEvent(new Event("input", { bubbles: true }));
+}, firstKey);
+check("a multi-character paste collapses to one letter", (await page.evaluate((k) => inputEls[k].value, firstKey)) === "О");
+
+// --- solving by typing, on touch --------------------------------------
+await page.evaluate((k) => {
+  inputEls[k].value = "";
+}, firstKey);
+const typed = await page.evaluate(async () => {
+  // Type every answer through the real input path rather than assigning
+  // values, so handleInput/advance/lock are all exercised.
+  for (const w of puzzle.words) {
+    w.cells.forEach(([r, c], i) => {
+      const input = inputEls[r + "-" + c];
+      input.value = "";
+      input.focus();
+      input.value = w.answer[i];
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+  }
+  return { solved: puzzleSolved, locked: lockedWords.size, total: puzzle.words.length };
+});
+check("a full grid still solves through the input path", typed.solved && typed.locked === typed.total, JSON.stringify(typed));
+
+// --- dragging ----------------------------------------------------------
+// Chromium already pans on inputs where iOS selects, so a passing drag
+// here is not proof the iOS symptom is gone. It is proof the grid still
+// scrolls from both kinds of cell, and that a drag leaves no selection
+// behind - a selection range is the thing iOS attaches its magnifier to,
+// so "no range after dragging" is the closest engine-neutral proxy
+// available without a real iPhone.
+//
+// Real touch events, not Input.synthesizeScrollGesture: that reports
+// success and scrolls nothing here, which would have made this a test
+// that always passed.
+const client = await context.newCDPSession(page);
+
+async function dragFrom(selector) {
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+    const sel = window.getSelection();
+    if (sel) sel.removeAllRanges();
+  });
+  await page.waitForTimeout(100);
+
+  const box = await page.locator(selector).first().boundingBox();
+  const x = Math.round(box.x + box.width / 2);
+  const y = Math.round(box.y + box.height / 2);
+
+  await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+  for (let i = 1; i <= 12; i++) {
+    await client.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x, y: y - i * 10 }] });
+    await page.waitForTimeout(16);
+  }
+  await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await page.waitForTimeout(600);
+
+  return page.evaluate(() => {
+    const active = document.activeElement;
+    return {
+      scrollY: window.scrollY,
+      selectedText: (window.getSelection() || { toString: () => "" }).toString(),
+      inputRange: active && active.tagName === "INPUT" && active.selectionStart !== active.selectionEnd,
+    };
+  });
+}
+
+const fromClue = await dragFrom("#grid .cell.clue");
+const fromLetter = await dragFrom("#grid .cell.letter");
+check("dragging from a clue cell scrolls the page", fromClue.scrollY > 0, `scrollY ${fromClue.scrollY}`);
+check("dragging from a letter cell scrolls the page too", fromLetter.scrollY > 0, `scrollY ${fromLetter.scrollY}`);
+check("dragging a letter cell selects no text", fromLetter.selectedText === "", `selected "${fromLetter.selectedText}"`);
+check("dragging a letter cell leaves no selection range in the input", !fromLetter.inputRange);
+
+await page.screenshot({ path: "/tmp/scanword-mobile.png" });
+await browser.close();
+server.closeAllConnections();
+await new Promise((r) => server.close(r));
+
+console.log(`${passed} passed, ${failures.length} failed  (played a ${dims.rows}x${dims.cols} grid on an iPhone 13 viewport)`);
+if (failures.length) {
+  failures.forEach((f) => console.log("  FAIL: " + f));
+  process.exit(1);
+}

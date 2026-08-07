@@ -59,6 +59,41 @@ just won't install or cache.
   cell with a lot of text clips/scales down rather than stretching the
   row.
 
+## Touch input
+
+Letter cells hold a real `<input>`, which needs care on a phone. The UA
+stylesheet resets `user-select` on form controls, so `.grid`'s
+`user-select: none` does not reach them - and a touch-drag that starts on
+a letter cell then grabs the text caret and raises iOS's selection
+magnifier instead of panning the zoomed grid. Clue cells, being plain
+divs, pan correctly, which makes the bug look like "the grid only drags
+from some cells". `.cell.letter input` therefore turns selection off
+explicitly.
+
+Two consequences worth knowing before changing this code:
+
+- `focusCell` parks a **collapsed caret** at the end of the field instead
+  of calling `select()`. A selection range is what iOS hangs the magnifier
+  and drag handles on, and `select()` created one on every single tap.
+- Because a full `maxLength=1` input silently rejects the next keystroke
+  (which is why `select()` was there), the inputs have **no maxLength**.
+  `handleInput` keeps a single character instead, preferring
+  `InputEvent.data` - the character actually just inserted - over the last
+  character in the field, since the caret can legitimately sit before the
+  existing letter and "keep the last one" would then discard the new one.
+
+`touch-action: manipulation` is set on the input only, so a stray second
+tap while filling in letters isn't read as double-tap-to-zoom. Clue cells
+deliberately keep double-tap zoom, since reading a clue is exactly when
+zooming in is wanted.
+
+`node tools/test-mobile.mjs` covers this on an iPhone 13 viewport. Note
+what it can't do: only Chromium is available here, and Chromium pans on
+inputs where iOS selects, so it cannot reproduce the magnifier itself. It
+verifies the mechanism (selection off, no range left by a tap or a drag)
+and, more usefully, that typing still overwrites correctly from any caret
+position - which is where the real regression risk of this change lives.
+
 ## Current limits
 
 The "custom size" generator in the UI runs the full search live in the
