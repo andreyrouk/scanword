@@ -595,19 +595,50 @@ await page.evaluate((n) => loadLadderLevel(n), bigN);
 await page.waitForFunction(() => document.querySelectorAll("#grid .cell.letter").length > 0, null, { timeout: 20000 });
 check("and back when a puzzle opens", await page.evaluate(() => !document.getElementById("keyboard").hidden));
 
-// A solved word is no longer "in play", so the bar must clear.
-const cleared = await page.evaluate(() => {
+// --- completing a word must not move the grid -------------------------
+// It used to move 72px: the clue bar hid itself on completion and its
+// space collapsed directly above the grid, so finishing a word yanked the
+// whole puzzle upward under the player's finger. The bar now keeps the
+// solved word's clue, so its height cannot change.
+const completed = await page.evaluate(() => {
+  const gridTop = () => Math.round(document.getElementById("grid").getBoundingClientRect().top);
   const w = puzzle.words.find((x) => !lockedWords.has(x.id)) || puzzle.words[0];
   selectWord(w.id, false);
+  const before = { top: gridTop(), scrollY: window.scrollY, barH: document.getElementById("cluebar").offsetHeight };
   w.cells.forEach(([r, c], i) => {
     const k = r + "-" + c;
     if (lockedCells.has(k)) return;
     focusCell(k);
     typeLetter(w.answer[i]);
   });
-  return { hidden: document.getElementById("cluebar").hidden, locked: lockedWords.has(w.id) };
+  return {
+    locked: lockedWords.has(w.id),
+    moved: gridTop() - before.top,
+    scrolled: window.scrollY - before.scrollY,
+    barChanged: document.getElementById("cluebar").offsetHeight - before.barH,
+    barVisible: !document.getElementById("cluebar").hidden,
+    marked: document.getElementById("cluebarDir").textContent,
+    answerShown: document.getElementById("cluebarLen").textContent === w.answer,
+    clueKept: document.getElementById("cluebarText").textContent === w.clue,
+  };
 });
-check("completing the selected word locks it and clears the bar", cleared.locked && cleared.hidden);
+check("the word locks", completed.locked);
+check("the grid does not move when a word completes", completed.moved === 0, `moved ${completed.moved}px`);
+check("and the page does not scroll", completed.scrolled === 0, `scrolled ${completed.scrolled}px`);
+check("the clue bar keeps its exact height", completed.barChanged === 0, `changed by ${completed.barChanged}px`);
+check("the bar stays in the layout rather than collapsing", completed.barVisible);
+check("it marks the word solved and shows the answer", completed.marked === "✓" && completed.answerShown && completed.clueKept);
+
+// --- the masthead gets out of the way during a solve -------------------
+const chrome = await page.evaluate(() => ({
+  hiddenInPlay: document.querySelector(".header").hidden,
+  gridTop: Math.round(document.getElementById("grid").getBoundingClientRect().top),
+}));
+check("the masthead is hidden while playing", chrome.hiddenInPlay);
+check("so the grid starts near the top of the screen", chrome.gridTop < 260, `${chrome.gridTop}px`);
+
+await page.click("#backBtn");
+check("and comes back on the level list", await page.evaluate(() => !document.querySelector(".header").hidden));
 
 await page.screenshot({ path: "/tmp/scanword-mobile.png" });
 await browser.close();

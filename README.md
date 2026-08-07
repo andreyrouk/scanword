@@ -104,6 +104,22 @@ still only gets ~9px. The bar above the grid shows the clue for the word
 in play at full size, with its direction and letter count, so reading a
 clue never requires zooming.
 
+It sits directly above the grid, which makes its height load-bearing:
+anything that changes it shifts the whole puzzle mid-solve. It used to
+*hide* itself when a word completed, collapsing ~70px and yanking the grid
+upward under the player's finger - which reads as a glitch, not as
+progress. So a solved word keeps its own clue in the bar, marked ✓ with
+the answer shown: the player sees what they got, and the text is unchanged
+so the height cannot move. A fixed `width` matters for the same reason -
+while the bar shrink-wrapped its content, a longer clue changed the bar's
+width *and* therefore how many lines it wrapped to.
+
+**The masthead is hidden during a solve.** The title and description are
+orientation for someone arriving at the site; mid-puzzle they are ~150px
+of screen spent on something the player already knows, pushing the grid
+below the fold. The play screen has its own header row with the back
+button and level name.
+
 **Panning and zooming are free.** Nothing in the grid takes DOM focus, so
 there is no focused input for the browser to scroll back into view and no
 caret to fight - see Entering letters below.

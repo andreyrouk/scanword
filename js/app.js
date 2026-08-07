@@ -37,6 +37,7 @@ const timerValueEl = document.getElementById("timerValue");
 const parValueEl = document.getElementById("parValue");
 const hintsValueEl = document.getElementById("hintsValue");
 const resultsEl = document.getElementById("results");
+const headerEl = document.querySelector(".header");
 const progressEl = document.getElementById("solveProgress");
 const progressFillEl = document.getElementById("solveProgressFill");
 const progressTrackEl = document.getElementById("solveProgressTrack");
@@ -123,16 +124,34 @@ function letterCountLabel(n) {
   return n + " літер";
 }
 
-function showClueBar(w) {
+// The bar stays in the layout for the whole solve, even with no word
+// selected. Removing it collapsed ~70px directly above the grid, so
+// finishing a word yanked the entire puzzle upward under the player's
+// finger - which reads as the app glitching, not as progress.
+function showClueBar(w, { solved = false } = {}) {
   const bar = document.getElementById("cluebar");
+  const dirEl = document.getElementById("cluebarDir");
+  const textEl = document.getElementById("cluebarText");
+  const lenEl = document.getElementById("cluebarLen");
+  bar.hidden = false;
+  bar.classList.toggle("cluebar-idle", !w);
+  bar.classList.toggle("cluebar-done", !!w && solved);
+
   if (!w) {
-    bar.hidden = true;
+    dirEl.textContent = "";
+    textEl.textContent = "Оберіть наступне слово";
+    lenEl.textContent = "";
     return;
   }
-  document.getElementById("cluebarDir").textContent = w.dir === "down" ? "↓" : "→";
-  document.getElementById("cluebarText").textContent = w.clue;
-  document.getElementById("cluebarLen").textContent = letterCountLabel(w.answer.length);
-  bar.hidden = false;
+
+  // A solved word keeps its own clue in the bar rather than the bar
+  // emptying out. Two reasons: the player gets to see what they just got,
+  // and the text is unchanged so the bar cannot change height - which is
+  // what matters, because it sits directly above the grid and any height
+  // change there shifts the whole puzzle mid-solve.
+  dirEl.textContent = solved ? "✓" : w.dir === "down" ? "↓" : "→";
+  textEl.textContent = w.clue;
+  lenEl.textContent = solved ? w.answer : letterCountLabel(w.answer.length);
 }
 
 function selectWord(wordId, focusFirst) {
@@ -327,7 +346,7 @@ function checkWordCompletion() {
         clearHighlights();
         activeWordId = null;
         focusedKey = null;
-        showClueBar(null);
+        showClueBar(w, { solved: true });
       }
     }
   });
@@ -1030,6 +1049,11 @@ function showScreen(name) {
   Object.entries(SCREENS).forEach(([key, el]) => {
     el.hidden = key !== name;
   });
+  // The masthead is orientation for someone arriving at the site; during a
+  // solve it is 150px of the screen spent on something the player already
+  // knows, pushing the grid below the fold. The play screen has its own
+  // header row with the back button and level name.
+  headerEl.hidden = name === "play";
   updateKeyboardVisibility();
 }
 

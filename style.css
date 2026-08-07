@@ -237,19 +237,34 @@ h1 { font-weight: 700; font-size: 27px; letter-spacing: -0.01em; margin: 0 0 8px
    small the grid's own clue type had to become. */
 .cluebar {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
+  /* Same width as the progress bar and the play header, so the column
+     lines up - and so the bar's height depends only on its text, not on
+     how wide that text happened to make it. */
+  width: 100%;
+  max-width: 560px;
   margin: 0 0 10px;
   padding: 10px 12px;
   background: var(--highlight);
   border: 1px solid var(--line);
   border-radius: 10px;
-  min-height: 44px;
+  /* Tall enough for a two-line clue, which is as long as they get at this
+     size. Fixing the height means the grid doesn't shift when the player
+     moves between a short clue and a long one either. */
+  min-height: 62px;
   box-sizing: border-box;
 }
 .cluebar-dir { font-size: 16px; font-weight: 700; color: var(--green); line-height: 1.2; }
 .cluebar-text { flex: 1; font-size: 15px; line-height: 1.35; color: var(--ink); }
 .cluebar-len { font-size: 11px; font-weight: 700; color: #888; white-space: nowrap; }
+/* No word in play: holds its place rather than collapsing, and recedes. */
+.cluebar-idle { background: var(--bg); }
+.cluebar-idle .cluebar-text { color: #999; font-style: italic; }
+/* Just solved: same text, so the bar keeps exactly its previous height. */
+.cluebar-done { background: var(--correct-bg); }
+.cluebar-done .cluebar-dir { color: var(--correct-text); }
+.cluebar-done .cluebar-len { color: var(--correct-text); font-weight: 800; letter-spacing: 0.04em; }
 
 /* The surface the player swipes. Cells have a readable/tappable floor
    (MIN_CELL_PX in js/app.js), so on a phone the grid is deliberately
