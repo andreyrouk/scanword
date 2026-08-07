@@ -86,6 +86,16 @@
     <span class="play-badge" id="dailyBadge" hidden></span>
   </div>
 
+  <!-- Completion, led with rather than buried: mid-solve, "how far am I"
+       is more encouraging than a running clock. Counts words confirmed
+       correct, not cells filled. -->
+  <div class="progressbar" id="solveProgress" hidden>
+    <div class="progressbar-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="solveProgressTrack">
+      <div class="progressbar-fill" id="solveProgressFill"></div>
+    </div>
+    <span class="progressbar-label" id="solveProgressLabel">0%</span>
+  </div>
+
   <div class="statsbar" id="statsbar" hidden>
     <div class="stat"><span class="stat-label">Час</span><span class="stat-value" id="timerValue">0:00</span></div>
     <div class="stat"><span class="stat-label">Ціль</span><span class="stat-value" id="parValue">—</span></div>

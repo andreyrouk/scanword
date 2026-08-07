@@ -182,6 +182,39 @@ h1 { font-weight: 700; font-size: 27px; letter-spacing: -0.01em; margin: 0 0 8px
 .results-best { margin-top: 6px; font-size: 12px; font-weight: 700; color: var(--green); }
 .results-actions { margin-top: 16px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 
+/* Completion, above the stats: mid-solve the first thing worth knowing is
+   how much is left, not what the clock says. */
+.progressbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 560px;
+  margin-bottom: 12px;
+}
+.progressbar-track {
+  flex: 1;
+  height: 8px;
+  background: var(--green-bg);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progressbar-fill {
+  height: 100%;
+  width: 0;
+  background: var(--green);
+  border-radius: 999px;
+  transition: width 320ms ease;
+}
+.progressbar-label {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--green);
+  font-variant-numeric: tabular-nums;
+  min-width: 34px;
+  text-align: right;
+}
+
 /* Live solve stats. Sits directly above the grid so the clock is visible
    without looking away from the puzzle. */
 .statsbar {

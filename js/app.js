@@ -37,6 +37,10 @@ const timerValueEl = document.getElementById("timerValue");
 const parValueEl = document.getElementById("parValue");
 const hintsValueEl = document.getElementById("hintsValue");
 const resultsEl = document.getElementById("results");
+const progressEl = document.getElementById("solveProgress");
+const progressFillEl = document.getElementById("solveProgressFill");
+const progressTrackEl = document.getElementById("solveProgressTrack");
+const progressLabelEl = document.getElementById("solveProgressLabel");
 
 function formatTime(totalSeconds) {
   const s = Math.max(0, Math.floor(totalSeconds));
@@ -89,6 +93,20 @@ function updateStats() {
   const par = parTimeSeconds(puzzle.words.length);
   timerValueEl.classList.toggle("over-par", secs > par);
   hintsValueEl.textContent = String(hintsUsed);
+}
+
+// Progress counts words confirmed correct, not cells filled: a grid full
+// of wrong guesses is not 100% done, and counting them would make the bar
+// a measure of typing rather than solving.
+function updateSolveProgress() {
+  if (!puzzle || !puzzle.words.length) return;
+  const done = lockedWords.size;
+  const total = puzzle.words.length;
+  const pct = Math.round((done / total) * 100);
+  progressFillEl.style.width = pct + "%";
+  progressLabelEl.textContent = pct + "%";
+  progressTrackEl.setAttribute("aria-valuenow", String(pct));
+  progressTrackEl.setAttribute("aria-label", `Розгадано ${done} з ${total} слів`);
 }
 
 function clearHighlights() {
@@ -313,6 +331,8 @@ function checkWordCompletion() {
       }
     }
   });
+
+  updateSolveProgress();
 
   // Fires the moment the last word locks, typing or not - a player
   // shouldn't have to remember to press "Перевірити" just to be told they
@@ -550,6 +570,8 @@ function renderPuzzle(p) {
   if (p.words.length) selectWord(p.words[0].id, true);
 
   statsbarEl.hidden = false;
+  progressEl.hidden = false;
+  updateSolveProgress();
   updateKeyboardVisibility();
   parValueEl.textContent = formatTime(parTimeSeconds(p.words.length));
   updateStats();
@@ -661,23 +683,39 @@ function cellSizePx(rows, cols) {
   return Math.max(MIN_CELL_PX, Math.min(idealByCount, fitted));
 }
 
-// Scrolls .grid-wrap just enough to bring a cell fully into view.
-// Deliberately not element.scrollIntoView(): that walks every scrollable
-// ancestor including the page, so it would yank the whole layout around
-// while someone is typing - and with the keyboard open on a phone, fight
-// the browser's own scroll-into-view for the focused input. This touches
-// one axis of one container and nothing else.
+// Scrolls the minimum needed to bring a cell into view, on whichever axis
+// needs it. Deliberately not element.scrollIntoView(): that centres the
+// element and walks every scrollable ancestor, which yanks the layout
+// around mid-word. This moves each axis by exactly the shortfall, and only
+// when there is one, so a cell already on screen never causes a jump.
 function keepCellInView(k) {
   const cell = cellEls[k];
   const wrap = gridEl.parentElement;
   if (!cell || !wrap) return;
+  const margin = 8; // show a sliver of the neighbouring cell for context
+
+  // Sideways: inside the grid's own scroller, since a big grid is wider
+  // than the screen.
   const cellBox = cell.getBoundingClientRect();
   const wrapBox = wrap.getBoundingClientRect();
-  const margin = 8; // show a sliver of the neighbouring cell for context
   if (cellBox.left < wrapBox.left + margin) {
     wrap.scrollLeft -= wrapBox.left + margin - cellBox.left;
   } else if (cellBox.right > wrapBox.right - margin) {
     wrap.scrollLeft += cellBox.right - wrapBox.right + margin;
+  }
+
+  // Vertically: on the page - and the keyboard is fixed over the bottom of
+  // it, so the usable area ends where the keys begin. Without this the
+  // cursor can advance into a row hidden behind the keyboard and the
+  // player ends up typing blind. Re-measured, because the horizontal
+  // scroll above may have moved the cell.
+  const after = cell.getBoundingClientRect();
+  const keyboardHeight = keyboardEl && !keyboardEl.hidden ? keyboardEl.offsetHeight : 0;
+  const usableBottom = window.innerHeight - keyboardHeight;
+  if (after.bottom > usableBottom - margin) {
+    window.scrollBy(0, after.bottom - usableBottom + margin);
+  } else if (after.top < margin) {
+    window.scrollBy(0, after.top - margin);
   }
 }
 
@@ -874,6 +912,7 @@ document.getElementById("resetBtn").addEventListener("click", () => {
   clearHighlights();
   activeWordId = null;
   focusedKey = null;
+  updateSolveProgress();
   setStatus("");
   if (puzzle.words.length) selectWord(puzzle.words[0].id, true);
   updateStats();

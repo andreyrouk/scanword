@@ -241,7 +241,61 @@ const typed = await page.evaluate(() => {
 });
 check("a full grid solves through the keyboard path", typed.solved && typed.locked === typed.total, JSON.stringify(typed));
 
+// --- the progress bar -------------------------------------------------
+const full = await page.evaluate(() => ({
+  label: document.getElementById("solveProgressLabel").textContent,
+  width: document.getElementById("solveProgressFill").style.width,
+  aria: document.getElementById("solveProgressTrack").getAttribute("aria-valuenow"),
+}));
+check("a solved grid reads 100%", full.label === "100%" && full.width === "100%", `${full.label} / ${full.width}`);
+check("and reports it to assistive tech", full.aria === "100", full.aria);
+
 // Back to an unsolved grid: everything below needs live, unlocked words.
+await page.click("#resetBtn");
+await page.waitForFunction(() => lockedWords.size === 0 && !puzzleSolved, null, { timeout: 5000 });
+
+const empty = await page.evaluate(() => ({
+  label: document.getElementById("solveProgressLabel").textContent,
+  width: document.getElementById("solveProgressFill").style.width,
+  visible: !document.getElementById("solveProgress").hidden,
+}));
+check("restarting resets the bar to zero", empty.label === "0%" && empty.width === "0%", `${empty.label} / ${empty.width}`);
+check("the bar is visible during play", empty.visible);
+
+// Wrong letters must not count as progress - the bar measures solving,
+// not typing.
+const wrong = await page.evaluate(() => {
+  const w = puzzle.words[0];
+  selectWord(w.id, false);
+  w.cells.forEach(([r, c]) => {
+    const k = r + "-" + c;
+    if (lockedCells.has(k)) return;
+    focusCell(k);
+    // A letter that cannot be right: pick one the answer doesn't use.
+    typeLetter([..."АБВГДЕЖЗИКЛМНОПРСТУФ"].find((ch) => !w.answer.includes(ch)));
+  });
+  return { label: document.getElementById("solveProgressLabel").textContent, locked: lockedWords.size };
+});
+check("a grid full of wrong guesses is still 0%", wrong.label === "0%" && wrong.locked === 0, `${wrong.label}, ${wrong.locked} locked`);
+
+// One correct word moves it by exactly one word's worth.
+const partial = await page.evaluate(() => {
+  const w = puzzle.words[0];
+  selectWord(w.id, false);
+  w.cells.forEach(([r, c], i) => {
+    const k = r + "-" + c;
+    if (lockedCells.has(k)) return;
+    focusCell(k);
+    typeLetter(w.answer[i]);
+  });
+  return {
+    label: document.getElementById("solveProgressLabel").textContent,
+    expected: Math.round((lockedWords.size / puzzle.words.length) * 100) + "%",
+    locked: lockedWords.size,
+  };
+});
+check("solving a word advances the bar", partial.label === partial.expected && partial.locked > 0, `${partial.label} vs ${partial.expected}`);
+
 await page.click("#resetBtn");
 await page.waitForFunction(() => lockedWords.size === 0 && !puzzleSolved, null, { timeout: 5000 });
 
@@ -378,6 +432,33 @@ const followed = await page.evaluate(() => {
 });
 check("the far end of a word starts off-screen", followed.startedOffScreen, "otherwise the next check proves nothing");
 check("focusing a cell scrolls it into view", followed.visible);
+
+// The keyboard is fixed over the bottom of the viewport, so a cell in a
+// low row can be on the page but behind the keys. Focus has to clear it.
+const belowKeyboard = await page.evaluate(() => {
+  window.scrollTo(0, 0);
+  const kb = document.getElementById("keyboard");
+  const kbTop = kb.hidden ? window.innerHeight : kb.getBoundingClientRect().top;
+  // Deepest letter cell of any word, i.e. the one most likely hidden.
+  let deepest = null;
+  let best = -1;
+  puzzle.words.forEach((w) =>
+    w.cells.forEach(([r, c]) => {
+      if (r > best) {
+        best = r;
+        deepest = r + "-" + c;
+      }
+    })
+  );
+  const before = cellEls[deepest].getBoundingClientRect();
+  const startedHidden = before.bottom > kbTop;
+  focusCell(deepest);
+  const after = cellEls[deepest].getBoundingClientRect();
+  const kbTopNow = kb.hidden ? window.innerHeight : kb.getBoundingClientRect().top;
+  return { startedHidden, clears: after.bottom <= kbTopNow + 1, top: Math.round(after.top) };
+});
+check("a low cell starts hidden behind the keyboard", belowKeyboard.startedHidden, "otherwise the next check proves nothing");
+check("focusing it scrolls it clear of the keyboard", belowKeyboard.clears);
 
 // --- the clue bar ------------------------------------------------------
 const bar = await page.evaluate(() => {

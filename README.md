@@ -84,11 +84,19 @@ a grid overflows by a handful of pixels and scrolls for nothing. Grids
 that miss fitting by up to `FIT_TOLERANCE_PX` give up those pixels rather
 than become scrollable at all.
 
-**`keepCellInView` follows the cursor.** Typing walks across a grid wider
-than the screen, so focusing a cell scrolls `.grid-wrap` just enough to
-show it. Deliberately not `scrollIntoView()`, which walks every
-scrollable ancestor including the page and would fight the browser's own
-scroll-into-view for a focused input with the keyboard open.
+**`keepCellInView` follows the cursor, on both axes.** Typing walks across
+a grid wider than the screen, and the in-app keyboard is fixed over the
+bottom of the viewport, so a cell can be off to the right *or* hidden
+behind the keys. Focusing one scrolls `.grid-wrap` sideways and the page
+vertically, by exactly the shortfall and only when there is one.
+Deliberately not `scrollIntoView()`, which centres the element and walks
+every scrollable ancestor - that yanks the layout around mid-word.
+
+**A progress bar leads the stats.** Mid-solve, how much is left is worth
+more than what the clock says. `updateSolveProgress()` counts words
+*confirmed correct*, not cells filled: a grid full of wrong guesses is not
+progress, and counting it would make the bar a measure of typing rather
+than solving.
 
 **The clue bar is the readable copy.** In-grid clue text is capped by the
 cell no matter how the grid is sized - a 33-character clue in a 44px cell
