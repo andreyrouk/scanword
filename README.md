@@ -59,6 +59,43 @@ just won't install or cache.
   cell with a lot of text clips/scales down rather than stretching the
   row.
 
+## Playing on a phone
+
+Three things have to hold at once on a small screen: the clue has to be
+readable, the cell has to be tappable, and the grid has to be navigable.
+They pull against each other, and the app resolves them like this.
+
+**Cells never shrink below 44px** (`MIN_CELL_PX` in `js/app.js`). Before,
+cells were sized purely to fit the viewport width, which gave an
+11-column grid 32px cells on an iPhone. That is too small twice over:
+44px is the minimum touch target in Apple's HIG, and the median clue is
+33 characters - fitting 33 characters in a square of side S caps the font
+at about S/4.6, so 32px cells meant ~7px type. Unreadable type is what
+drove players to pinch-zoom, and pinch-zoom is what dragged badly.
+
+**The grid scrolls sideways instead of shrinking.** Past 8 columns the
+grid is deliberately wider than the screen and `.grid-wrap` is the
+surface you swipe - the supported, momentum-scrolled version of what
+pinch-zoom-and-drag was being used for. Two details this depends on:
+`.grid` needs `width: max-content`, or its `overflow: hidden` (which
+rounds the corners) silently *clips* the right-hand columns instead of
+letting them scroll; and `cellSizePx` counts the 1px gaps and border, or
+a grid overflows by a handful of pixels and scrolls for nothing. Grids
+that miss fitting by up to `FIT_TOLERANCE_PX` give up those pixels rather
+than become scrollable at all.
+
+**`keepCellInView` follows the cursor.** Typing walks across a grid wider
+than the screen, so focusing a cell scrolls `.grid-wrap` just enough to
+show it. Deliberately not `scrollIntoView()`, which walks every
+scrollable ancestor including the page and would fight the browser's own
+scroll-into-view for a focused input with the keyboard open.
+
+**The clue bar is the readable copy.** In-grid clue text is capped by the
+cell no matter how the grid is sized - a 33-character clue in a 44px cell
+still only gets ~9px. The bar above the grid shows the clue for the word
+in play at full size, with its direction and letter count, so reading a
+clue never requires zooming.
+
 ## Touch input
 
 Letter cells hold a real `<input>`, which needs care on a phone. The UA
@@ -87,12 +124,15 @@ tap while filling in letters isn't read as double-tap-to-zoom. Clue cells
 deliberately keep double-tap zoom, since reading a clue is exactly when
 zooming in is wanted.
 
-`node tools/test-mobile.mjs` covers this on an iPhone 13 viewport. Note
-what it can't do: only Chromium is available here, and Chromium pans on
-inputs where iOS selects, so it cannot reproduce the magnifier itself. It
-verifies the mechanism (selection off, no range left by a tap or a drag)
-and, more usefully, that typing still overwrites correctly from any caret
-position - which is where the real regression risk of this change lives.
+`node tools/test-mobile.mjs` covers all of the above on an iPhone 13
+viewport, driving real touch events. Note what it can't do: only Chromium
+is available here, and Chromium pans on inputs where iOS selects, so it
+cannot reproduce the magnifier itself. It verifies the mechanism
+(selection off, no range left by a tap or a drag), the layout rules
+(cell floor, scrolls when it should and doesn't when it shouldn't, no
+clipped clues), and that typing still overwrites correctly from any caret
+position - which is where the real regression risk of these changes
+lives.
 
 ## Current limits
 

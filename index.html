@@ -92,6 +92,16 @@
     <div class="stat"><span class="stat-label">Підказки</span><span class="stat-value" id="hintsValue">0</span></div>
   </div>
 
+  <!-- The clue for the word in play, at a size that can actually be read.
+       In-grid clue text is capped by the cell, and the median clue is 33
+       characters, so on a phone it lands around 9px however the grid is
+       sized. This bar is the readable copy. -->
+  <div class="cluebar" id="cluebar" hidden>
+    <span class="cluebar-dir" id="cluebarDir"></span>
+    <span class="cluebar-text" id="cluebarText"></span>
+    <span class="cluebar-len" id="cluebarLen"></span>
+  </div>
+
   <div class="grid-wrap">
     <div class="grid" id="grid"></div>
   </div>

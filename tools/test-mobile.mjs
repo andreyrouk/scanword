@@ -158,6 +158,10 @@ const typed = await page.evaluate(async () => {
 });
 check("a full grid still solves through the input path", typed.solved && typed.locked === typed.total, JSON.stringify(typed));
 
+// Back to an unsolved grid: everything below needs live, unlocked words.
+await page.click("#resetBtn");
+await page.waitForFunction(() => lockedWords.size === 0 && !puzzleSolved, null, { timeout: 5000 });
+
 // --- dragging ----------------------------------------------------------
 // Chromium already pans on inputs where iOS selects, so a passing drag
 // here is not proof the iOS symptom is gone. It is proof the grid still
@@ -207,6 +211,133 @@ check("dragging from a clue cell scrolls the page", fromClue.scrollY > 0, `scrol
 check("dragging from a letter cell scrolls the page too", fromLetter.scrollY > 0, `scrollY ${fromLetter.scrollY}`);
 check("dragging a letter cell selects no text", fromLetter.selectedText === "", `selected "${fromLetter.selectedText}"`);
 check("dragging a letter cell leaves no selection range in the input", !fromLetter.inputRange);
+
+// --- readable cells, and a grid that scrolls sideways ------------------
+// The reason the grid was being pinch-zoomed at all: cells shrank to fit
+// the viewport, which drove clue type down to ~7px. Cells now hold a
+// floor and .grid-wrap scrolls instead.
+const layout = await page.evaluate(() => {
+  const wrap = document.querySelector(".grid-wrap");
+  const clues = [...document.querySelectorAll(".clue-text")];
+  return {
+    cell: Math.round(document.querySelector("#grid .cell").getBoundingClientRect().width),
+    wrapClient: wrap.clientWidth,
+    wrapScroll: wrap.scrollWidth,
+    pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    clipped: clues.filter((t) => t.scrollWidth > t.clientWidth + 0.5 || t.scrollHeight > t.clientHeight + 0.5).length,
+    minFont: Math.min(...clues.map((t) => parseFloat(getComputedStyle(t).fontSize))),
+  };
+});
+check("cells clear the 44px touch-target minimum", layout.cell >= 44, `${layout.cell}px`);
+check("a big grid is wider than the screen, so there is something to swipe", layout.wrapScroll > layout.wrapClient);
+check("only the grid scrolls sideways, never the page", layout.pageOverflow === 0, `page overflows ${layout.pageOverflow}px`);
+check("no clue is cut off", layout.clipped === 0, `${layout.clipped} clipped`);
+
+// The flip side: a grid that fits must not scroll. Cells give up a couple
+// of pixels below the floor rather than turn a 3px overhang into a
+// scrolling surface.
+const small = await page.evaluate(async () => {
+  const lvl = ladder.levels.filter((l) => l.cols <= 8).sort((a, b) => a.cols - b.cols)[0];
+  await loadLadderLevel(lvl.n);
+  const wrap = document.querySelector(".grid-wrap");
+  return {
+    cols: puzzle.cols,
+    cell: Math.round(document.querySelector("#grid .cell").getBoundingClientRect().width),
+    overflow: wrap.scrollWidth - wrap.clientWidth,
+  };
+});
+check("a grid that nearly fits does not scroll", small.overflow === 0, `${small.cols}col overflows ${small.overflow}px`);
+check("and its cells stay within a hair of the touch minimum", small.cell >= 41, `${small.cell}px`);
+
+// Back to the big grid for the gesture checks below.
+await page.evaluate((n) => loadLadderLevel(n), bigN);
+await page.waitForFunction(() => document.querySelectorAll("#grid .cell.letter").length > 0, null, { timeout: 20000 });
+
+// Swiping horizontally must move the grid, from a letter cell as much as
+// from a clue cell - that is the reported gesture.
+async function swipeGrid(selector) {
+  await page.evaluate(() => {
+    document.querySelector(".grid-wrap").scrollLeft = 0;
+  });
+  await page.waitForTimeout(100);
+  const box = await page.locator(selector).first().boundingBox();
+  const y = Math.round(box.y + box.height / 2);
+  const x0 = Math.round(box.x + box.width / 2);
+  await client.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: x0, y }] });
+  for (let i = 1; i <= 12; i++) {
+    await client.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x0 - i * 10, y }] });
+    await page.waitForTimeout(16);
+  }
+  await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  await page.waitForTimeout(600);
+  return page.evaluate(() => document.querySelector(".grid-wrap").scrollLeft);
+}
+const swipeClue = await swipeGrid("#grid .cell.clue");
+const swipeLetter = await swipeGrid("#grid .cell.letter");
+check("swiping the grid from a clue cell scrolls it", swipeClue > 0, `scrollLeft ${swipeClue}`);
+check("swiping the grid from a letter cell scrolls it too", swipeLetter > 0, `scrollLeft ${swipeLetter}`);
+
+// Typing walks across the grid; the cursor must not walk off the screen.
+const followed = await page.evaluate(() => {
+  const wrap = document.querySelector(".grid-wrap");
+  wrap.scrollLeft = 0;
+  // Pick the word that reaches furthest right, so its tail starts off-screen.
+  const w = puzzle.words
+    .filter((x) => x.dir === "across")
+    .sort((a, b) => b.cells[b.cells.length - 1][1] - a.cells[a.cells.length - 1][1])[0];
+  const last = w.cells[w.cells.length - 1];
+  const before = document.getElementById("grid").children[last[0] * puzzle.cols + last[1]].getBoundingClientRect();
+  const wrapBox = wrap.getBoundingClientRect();
+  const startedOffScreen = before.right > wrapBox.right;
+  focusCell(last[0] + "-" + last[1]);
+  const after = document.getElementById("grid").children[last[0] * puzzle.cols + last[1]].getBoundingClientRect();
+  return { startedOffScreen, visible: after.left >= wrapBox.left - 1 && after.right <= wrapBox.right + 1 };
+});
+check("the far end of a word starts off-screen", followed.startedOffScreen, "otherwise the next check proves nothing");
+check("focusing a cell scrolls it into view", followed.visible);
+
+// --- the clue bar ------------------------------------------------------
+const bar = await page.evaluate(() => {
+  const w = puzzle.words.find((x) => x.dir === "down") || puzzle.words[0];
+  selectWord(w.id, false);
+  const el = document.getElementById("cluebar");
+  return {
+    hidden: el.hidden,
+    text: document.getElementById("cluebarText").textContent,
+    expected: w.clue,
+    dir: document.getElementById("cluebarDir").textContent,
+    len: document.getElementById("cluebarLen").textContent,
+    fontPx: parseFloat(getComputedStyle(document.getElementById("cluebarText")).fontSize),
+    gridFontPx: parseFloat(getComputedStyle(document.querySelector(".clue-text")).fontSize),
+  };
+});
+check("selecting a word shows its clue in the bar", !bar.hidden && bar.text === bar.expected, bar.text);
+check("the bar shows the direction", bar.dir === "↓" || bar.dir === "→", bar.dir);
+check("the bar is readable, unlike the in-grid copy", bar.fontPx >= 15 && bar.fontPx > bar.gridFontPx, `${bar.fontPx}px vs ${bar.gridFontPx}px in grid`);
+
+// Ukrainian counts agree: 3 літери, 5 літер, 1 літера.
+const plurals = await page.evaluate(() => [1, 2, 3, 4, 5, 11, 12, 21].map((n) => letterCountLabel(n)));
+check(
+  "letter counts agree in Ukrainian",
+  JSON.stringify(plurals) ===
+    JSON.stringify(["1 літера", "2 літери", "3 літери", "4 літери", "5 літер", "11 літер", "12 літер", "21 літера"]),
+  plurals.join(", ")
+);
+
+// A solved word is no longer "in play", so the bar must clear.
+const cleared = await page.evaluate(() => {
+  const w = puzzle.words.find((x) => !lockedWords.has(x.id)) || puzzle.words[0];
+  selectWord(w.id, false);
+  w.cells.forEach(([r, c], i) => {
+    const input = inputEls[r + "-" + c];
+    input.value = "";
+    input.focus();
+    input.value = w.answer[i];
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  return document.getElementById("cluebar").hidden;
+});
+check("completing the selected word clears the bar", cleared);
 
 await page.screenshot({ path: "/tmp/scanword-mobile.png" });
 await browser.close();

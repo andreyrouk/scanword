@@ -94,6 +94,28 @@ function clearHighlights() {
   Object.values(cellEls).forEach((div) => div.classList.remove("highlight", "focused", "active"));
 }
 
+// 3 літери / 5 літер - Ukrainian needs the count agreement, and "3 літер"
+// reads as broken to a native speaker.
+function letterCountLabel(n) {
+  const ones = n % 10;
+  const teens = n % 100;
+  if (ones === 1 && teens !== 11) return n + " літера";
+  if (ones >= 2 && ones <= 4 && (teens < 12 || teens > 14)) return n + " літери";
+  return n + " літер";
+}
+
+function showClueBar(w) {
+  const bar = document.getElementById("cluebar");
+  if (!w) {
+    bar.hidden = true;
+    return;
+  }
+  document.getElementById("cluebarDir").textContent = w.dir === "down" ? "↓" : "→";
+  document.getElementById("cluebarText").textContent = w.clue;
+  document.getElementById("cluebarLen").textContent = letterCountLabel(w.answer.length);
+  bar.hidden = false;
+}
+
 function selectWord(wordId, focusFirst) {
   activeWordId = wordId;
   clearHighlights();
@@ -101,9 +123,14 @@ function selectWord(wordId, focusFirst) {
   w.cells.forEach(([r, c]) => cellEls[key(r, c)].classList.add("highlight"));
   const clueKey = key(w.clueCell[0], w.clueCell[1]);
   if (cellEls[clueKey]) cellEls[clueKey].classList.add("active");
+  showClueBar(w);
   if (focusFirst) {
     const firstEditable = w.cells.map(([r, c]) => key(r, c)).find((k) => !lockedCells.has(k));
     if (firstEditable) focusCell(firstEditable);
+  } else {
+    // Selecting a word without focusing into it (tapping its clue cell on
+    // a crossing) should still bring the word on screen.
+    keepCellInView(key(w.cells[0][0], w.cells[0][1]));
   }
 }
 
@@ -127,6 +154,10 @@ function focusCell(k) {
     // the caret lands somewhere sane anyway, so this is not worth failing
     // a tap over.
   }
+  // Typing advances cell by cell, and on a phone the grid is wider than
+  // the screen - without this the cursor walks off the edge and the
+  // player has to swipe after every few letters.
+  keepCellInView(k);
 }
 
 function handleCellClick(k) {
@@ -223,6 +254,7 @@ function checkWordCompletion() {
         clearHighlights();
         activeWordId = null;
         focusedKey = null;
+        showClueBar(null);
         if (document.activeElement) document.activeElement.blur();
       }
     }
@@ -377,6 +409,7 @@ function renderPuzzle(p) {
   resetTimer();
   resultsEl.hidden = true;
   statusEl.textContent = "";
+  showClueBar(null);
 
   p.words.forEach((w) => {
     wordById[w.id] = w;
@@ -537,14 +570,61 @@ window.addEventListener("resize", () => {
   resizeTimer = setTimeout(relayoutGrid, 150);
 });
 
+// Cells never shrink below this, even if that makes the grid wider than
+// the screen - .grid-wrap scrolls instead. Two reasons, and they happen
+// to agree on the same number:
+//
+//   Readable. The median clue is 33 characters. Fitting 33 characters
+//   inside a square of side S caps the font at roughly S/4.6, so the 32px
+//   cells an 11-column grid used to get on an iPhone allowed about 7px
+//   type - which is why the grid was unreadable without pinch-zooming,
+//   and pinch-zooming is what dragged badly. 44px buys ~9.6px instead.
+//
+//   Tappable. 44px is also the minimum touch target in Apple's HIG, so
+//   the old 32px (floor: 24px) cells were below the size at which a
+//   fingertip reliably hits the cell it aimed at.
+const MIN_CELL_PX = 44;
+
+// How far below MIN_CELL_PX a grid may shrink to avoid scrolling at all.
+// A grid that misses fitting by three pixels should give up those three
+// pixels, not become a scrolling surface for nothing.
+const FIT_TOLERANCE_PX = 3;
+
 // A single fixed square size for every cell: large enough to read
-// comfortably at small grid sizes, shrinking as needed so bigger grids
-// still fit the viewport without scrolling sideways.
+// comfortably at small grid sizes, shrinking to fit the viewport for
+// bigger ones - but never past MIN_CELL_PX, beyond which .grid-wrap
+// scrolls sideways instead.
 function cellSizePx(rows, cols) {
   const dim = Math.max(rows, cols);
   const idealByCount = dim <= 8 ? 68 : dim <= 14 ? 48 : 36;
-  const viewportCap = Math.floor((Math.min(window.innerWidth, 900) - 32) / cols);
-  return Math.max(24, Math.min(idealByCount, viewportCap));
+  // The size that fits exactly, counting the 1px gap between each pair of
+  // cells and the grid's own 1px border. Ignoring those overflows the
+  // viewport by a handful of pixels and scrolls for no reason.
+  const available = Math.min(window.innerWidth, 900) - 32;
+  const fitted = Math.floor((available - cols - 1) / cols);
+
+  if (fitted >= MIN_CELL_PX - FIT_TOLERANCE_PX) return Math.min(idealByCount, fitted);
+  return Math.max(MIN_CELL_PX, Math.min(idealByCount, fitted));
+}
+
+// Scrolls .grid-wrap just enough to bring a cell fully into view.
+// Deliberately not element.scrollIntoView(): that walks every scrollable
+// ancestor including the page, so it would yank the whole layout around
+// while someone is typing - and with the keyboard open on a phone, fight
+// the browser's own scroll-into-view for the focused input. This touches
+// one axis of one container and nothing else.
+function keepCellInView(k) {
+  const cell = cellEls[k];
+  const wrap = gridEl.parentElement;
+  if (!cell || !wrap) return;
+  const cellBox = cell.getBoundingClientRect();
+  const wrapBox = wrap.getBoundingClientRect();
+  const margin = 8; // show a sliver of the neighbouring cell for context
+  if (cellBox.left < wrapBox.left + margin) {
+    wrap.scrollLeft -= wrapBox.left + margin - cellBox.left;
+  } else if (cellBox.right > wrapBox.right - margin) {
+    wrap.scrollLeft += cellBox.right - wrapBox.right + margin;
+  }
 }
 
 function setStatus(text) {

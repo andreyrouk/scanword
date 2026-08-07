@@ -198,7 +198,37 @@ h1 { font-weight: 700; font-size: 27px; letter-spacing: -0.01em; margin: 0 0 8px
 }
 .stat-value.over-par { color: #b3541e; }
 
-.grid-wrap { max-width: 100%; overflow-x: auto; padding-bottom: 4px; }
+/* The clue for the word in play, at a readable size regardless of how
+   small the grid's own clue type had to become. */
+.cluebar {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  background: var(--highlight);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+.cluebar-dir { font-size: 16px; font-weight: 700; color: var(--green); line-height: 1.2; }
+.cluebar-text { flex: 1; font-size: 15px; line-height: 1.35; color: var(--ink); }
+.cluebar-len { font-size: 11px; font-weight: 700; color: #888; white-space: nowrap; }
+
+/* The surface the player swipes. Cells have a readable/tappable floor
+   (MIN_CELL_PX in js/app.js), so on a phone the grid is deliberately
+   wider than the screen and this scrolls horizontally - which is the
+   supported, momentum-scrolled version of what pinch-zoom-and-drag was
+   being used for. overscroll-behavior-x keeps a swipe that reaches the
+   end of the grid from being taken as the browser's back gesture. */
+.grid-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
 
 .grid {
   display: grid;
@@ -206,7 +236,13 @@ h1 { font-weight: 700; font-size: 27px; letter-spacing: -0.01em; margin: 0 0 8px
   background: var(--line);
   border: 1px solid var(--line);
   border-radius: 8px;
+  /* Clips the corners to the radius - but it also means anything past the
+     grid box's width is cut off rather than scrolled, so the box has to
+     be as wide as its columns actually are. Without width: max-content a
+     block-level grid takes the container's width and silently swallows
+     the right-hand columns of any grid too wide for the screen. */
   overflow: hidden;
+  width: max-content;
   box-shadow: var(--shadow-md);
   user-select: none;
 }
