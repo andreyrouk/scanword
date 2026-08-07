@@ -106,10 +106,17 @@
     <div class="grid" id="grid"></div>
   </div>
 
+  <!-- The game's own keyboard. Nothing in the grid is a form field, so
+       the OS keyboard never opens: no layout switching to type Ukrainian,
+       no viewport resizing as focus moves, and no caret for iOS to chase
+       or magnify. Ukrainian ЙЦУКЕН - note there is no Ё, Ъ, Ы or Э. -->
+  <div class="keyboard" id="keyboard" role="group" aria-label="Українська клавіатура" hidden></div>
+
   <div class="controls">
     <button class="btn-primary" id="checkBtn">Перевірити</button>
     <button class="btn-ghost" id="hintBtn">Підказка</button>
     <button class="btn-ghost" id="resetBtn">Спочатку</button>
+    <button class="btn-ghost" id="keyboardToggle" aria-pressed="true" hidden>⌨ Сховати</button>
   </div>
   <div class="status" id="status"></div>
 

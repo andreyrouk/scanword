@@ -96,55 +96,69 @@ still only gets ~9px. The bar above the grid shows the clue for the word
 in play at full size, with its direction and letter count, so reading a
 clue never requires zooming.
 
-**Selection is app state, not DOM focus.** While a cell's `<input>` holds
-focus the browser keeps scrolling it back into view, so panning or
-pinching away from the word in play gets undone - the player is pinned to
-wherever the caret is. So a pan (past `PAN_THRESHOLD_PX`) or any
-two-finger touch blurs the input, while `activeWordId`, the highlight,
-the `.focused` cell and the clue bar all stay exactly as they were. The
-player can wander anywhere at any zoom and the word is still selected
-when they come back; the next tap restores the caret. `focusCell` also
-uses `focus({ preventScroll: true })` for the same reason - the browser's
-own scroll-into-view walks every scrollable ancestor, where
-`keepCellInView` moves one axis of one container and only when needed.
+**Panning and zooming are free.** Nothing in the grid takes DOM focus, so
+there is no focused input for the browser to scroll back into view and no
+caret to fight - see Entering letters below.
 
-## Touch input
+## Entering letters
 
-Letter cells hold a real `<input>`, which needs care on a phone. The UA
-stylesheet resets `user-select` on form controls, so `.grid`'s
-`user-select: none` does not reach them - and a touch-drag that starts on
-a letter cell then grabs the text caret and raises iOS's selection
-magnifier instead of panning the zoomed grid. Clue cells, being plain
-divs, pan correctly, which makes the bug look like "the grid only drags
-from some cells". `.cell.letter input` therefore turns selection off
-explicitly.
+**No cell is a form field.** Letter cells hold a plain `<span>`, the
+entered letters live in a `letters` map in `js/app.js`, and all input
+arrives through `typeLetter()` / `backspaceLetter()` / `moveFocus()`. This
+one decision is what makes the rest work:
 
-Two consequences worth knowing before changing this code:
+- **The OS keyboard never opens.** A player whose phone is set to English
+  would otherwise have to switch layouts to type a single answer, and the
+  system keyboard opened and closed as focus moved between cells,
+  resizing the viewport under the grid every time.
+- **There is no caret.** Every mobile bug this project hit came from
+  having ~100 real text inputs in a grid: iOS raising its selection
+  magnifier on a drag that started in one, the browser scrolling the
+  focused input back into view and fighting the player's pan, the
+  keyboard reflowing the page. None of those are patched - they cannot
+  happen.
+- **Selection is app state** - `activeWordId`, the highlight, the
+  `.focused` cell, the clue bar. Panning or pinching anywhere costs
+  nothing, because there is no DOM focus to lose and nothing the browser
+  wants to scroll back to.
 
-- `focusCell` parks a **collapsed caret** at the end of the field instead
-  of calling `select()`. A selection range is what iOS hangs the magnifier
-  and drag handles on, and `select()` created one on every single tap.
-- Because a full `maxLength=1` input silently rejects the next keystroke
-  (which is why `select()` was there), the inputs have **no maxLength**.
-  `handleInput` keeps a single character instead, preferring
-  `InputEvent.data` - the character actually just inserted - over the last
-  character in the field, since the caret can legitimately sit before the
-  existing letter and "keep the last one" would then discard the new one.
+Since there is no caret, the focused cell draws its own outline
+(`.cell.letter.focused::after`).
 
-`touch-action: manipulation` is set on the input only, so a stray second
-tap while filling in letters isn't read as double-tap-to-zoom. Clue cells
-deliberately keep double-tap zoom, since reading a clue is exactly when
-zooming in is wanted.
+**The in-app keyboard** is standard Ukrainian ЙЦУКЕН (`KEYBOARD_ROWS`),
+pinned to the bottom of the viewport with `position: fixed` - the page
+scrolls, and a keyboard you have to scroll to reach is worse than the one
+it replaced. `#playScreen` reserves exactly its height via `--kb-height`,
+measured in `updateKeyboardVisibility()` rather than hardcoded because the
+safe-area inset varies by device. It can be folded away for a full view of
+a large grid.
 
-`node tools/test-mobile.mjs` covers all of the above on an iPhone 13
-viewport, driving real touch events. Note what it can't do: only Chromium
-is available here, and Chromium pans on inputs where iOS selects, so it
-cannot reproduce the magnifier itself. It verifies the mechanism
-(selection off, no range left by a tap or a drag), the layout rules
-(cell floor, scrolls when it should and doesn't when it shouldn't, no
-clipped clues), and that typing still overwrites correctly from any caret
-position - which is where the real regression risk of these changes
-lives.
+Note which letters it has: the 33 of the Ukrainian alphabet and no others.
+Ё, Ъ, Ы and Э are Russian and appear in no Ukrainian word, so a keystroke
+producing one is not a letter this game accepts. Ґ is included even though
+no answer in the current 100 levels uses it.
+
+**Physical keyboards still work** - this is a website too. Keys are
+resolved by `normalizeTypedKey()`, which accepts a Ukrainian letter
+directly and otherwise maps the key's *position* through `QWERTY_TO_UK`.
+That is the desktop half of the same problem: someone whose laptop is set
+to English can touch-type Ukrainian without installing a layout. The
+document-level handler stays out of the way whenever a real form field has
+focus, or the custom-grid row/column boxes would become untypeable.
+
+`node tools/test-mobile.mjs` covers all of this on an iPhone 13 viewport
+with real touch events: that the grid contains no form field at all, the
+keyboard's exact letter inventory, entry/backspace/cursor keys, the
+QWERTY-position mapping, rejection of Russian-only letters, solving a full
+grid through the entry path, and selection surviving pans and pinches.
+Only Chromium is available here, so iOS-specific UI still can't be
+rendered - but the structure that made those bugs possible is asserted
+directly, which is stronger than testing around it.
+
+One testing trap worth remembering: Playwright's `keyboard.type()` sends
+non-ASCII through `Input.insertText`, which never fires a `keydown`, so it
+cannot exercise a keydown handler. Cyrillic key tests dispatch
+`KeyboardEvent` directly.
 
 ## Current limits
 

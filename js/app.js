@@ -8,7 +8,8 @@ const key = (r, c) => r + "-" + c;
 
 let puzzle = null;
 let cellEls = {};
-let inputEls = {};
+let letterEls = {}; // key -> the <span> showing the letter in that cell
+let letters = {}; // key -> the letter currently entered there ("" if empty)
 let cellWordsMap = {}; // key -> [wordId, ...] (letter cells only)
 let wordById = {};
 let activeWordId = null;
@@ -138,97 +139,11 @@ function focusCell(k) {
   if (focusedKey && cellEls[focusedKey]) cellEls[focusedKey].classList.remove("focused");
   focusedKey = k;
   cellEls[k].classList.add("focused");
-  const input = inputEls[k];
-  // preventScroll: focusing an input normally makes the browser scroll it
-  // into view, walking every scrollable ancestor and moving the page
-  // under the player. keepCellInView below does the same job with a
-  // much smaller blast radius - one axis of one container, and only when
-  // the cell is actually off-screen.
-  try {
-    input.focus({ preventScroll: true });
-  } catch (err) {
-    input.focus();
-  }
-  // Park the caret after the existing letter rather than select()-ing it.
-  // select() creates a real selection range, and on iOS that pops the
-  // selection magnifier and drag handles on every single tap into the
-  // grid. A collapsed caret does not, and typing still overwrites,
-  // because the input has no maxLength and handleInput keeps only the
-  // last character typed - see renderPuzzle.
-  const end = input.value.length;
-  try {
-    input.setSelectionRange(end, end);
-  } catch (err) {
-    // Some browsers reject setSelectionRange on certain input types;
-    // the caret lands somewhere sane anyway, so this is not worth failing
-    // a tap over.
-  }
   // Typing advances cell by cell, and on a phone the grid is wider than
   // the screen - without this the cursor walks off the edge and the
   // player has to swipe after every few letters.
   keepCellInView(k);
 }
-
-// Looking around the grid must never be a fight. While a cell's <input>
-// holds DOM focus the browser keeps scrolling it back into view - and on
-// a phone the keyboard is covering half the screen while it does - so
-// panning or pinching away from the word in play gets undone.
-//
-// The fix is to stop treating DOM focus as the selection. The selection
-// is app state: activeWordId, the highlight, the .focused cell and the
-// clue bar. Dropping focus the moment a pan or pinch starts leaves all of
-// that exactly as it was and costs only the caret, which the next tap
-// restores. So the player can wander anywhere, at any zoom, and the word
-// they were on is still selected and still highlighted when they come
-// back to it.
-const PAN_THRESHOLD_PX = 10;
-let touchStartPoint = null;
-
-function blurGridInput() {
-  const active = document.activeElement;
-  // Scoped to grid cells: the row/column number inputs in the custom-grid
-  // panel are ordinary form fields and must keep their focus.
-  if (active && active.tagName === "INPUT" && active.closest(".cell")) active.blur();
-}
-
-document.addEventListener(
-  "touchstart",
-  (e) => {
-    if (e.touches.length > 1) {
-      // Two fingers is a pinch, never a tap - let go of the caret now
-      // rather than after the zoom has already been fought.
-      blurGridInput();
-      touchStartPoint = null;
-      return;
-    }
-    touchStartPoint = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  },
-  { passive: true }
-);
-
-document.addEventListener(
-  "touchmove",
-  (e) => {
-    if (e.touches.length > 1) {
-      blurGridInput();
-      touchStartPoint = null;
-      return;
-    }
-    if (!touchStartPoint) return;
-    // A threshold, so that the small amount of travel in any real tap
-    // doesn't read as a pan and close the keyboard mid-word.
-    const t = e.touches[0];
-    if (Math.abs(t.clientX - touchStartPoint.x) > PAN_THRESHOLD_PX || Math.abs(t.clientY - touchStartPoint.y) > PAN_THRESHOLD_PX) {
-      blurGridInput();
-      touchStartPoint = null;
-    }
-  },
-  { passive: true }
-);
-
-document.addEventListener("touchend", () => {
-  touchStartPoint = null;
-}, { passive: true });
 
 function handleCellClick(k) {
   const ids = cellWordsMap[k];
@@ -256,61 +171,131 @@ function nextEditableInWord(wordId, fromKey) {
   return null;
 }
 
-const NON_LETTER = /[^a-zA-Zа-яА-ЯіІїЇєЄґҐ'ʼ]/g;
-
-function handleInput(e, k) {
-  if (lockedCells.has(k)) {
-    e.target.value = e.target.dataset.letter;
-    return;
+function prevEditableInWord(wordId, fromKey) {
+  const w = wordById[wordId];
+  const keys = w.cells.map(([r, c]) => key(r, c));
+  const idx = keys.indexOf(fromKey);
+  for (let i = idx - 1; i >= 0; i--) {
+    if (!lockedCells.has(keys[i])) return keys[i];
   }
-  // Which character survives when a filled cell receives another one: the
-  // one the browser reports as just inserted, not simply the last in the
-  // field. The caret can legitimately sit *before* the existing letter -
-  // arrow keys, or a tap the browser placed itself - and "keep the last
-  // character" would then keep the old letter and silently swallow the
-  // new one. Falls back to the field contents for events that report no
-  // data: deletions, and the synthetic input events useHint dispatches.
-  const inserted = typeof e.data === "string" ? e.data.replace(NON_LETTER, "") : "";
-  const val = (inserted || e.target.value.replace(NON_LETTER, "")).slice(-1).toUpperCase();
-  e.target.value = val;
-  if (!val) return;
+  return null;
+}
+
+// --- entering letters --------------------------------------------------
+// Cells hold plain text, not <input>s, and all input arrives here: from
+// the in-app keyboard (js: KEYBOARD_ROWS below) and from a physical
+// keyboard on desktop. See the "Entering letters" section of the README
+// for why there is no <input> in the grid at all.
+
+// The 33 letters of the Ukrainian alphabet, and nothing else. Ё, Ъ, Ы and
+// Э are Russian-only and appear in no Ukrainian word, so a keystroke
+// producing one is not a letter this game accepts.
+const UK_LETTERS = "АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯ";
+
+// A physical key's position, mapped to the Ukrainian letter that sits
+// there on a ЙЦУКЕН layout. This is the desktop half of the same problem
+// the in-app keyboard solves on phones: somebody whose laptop is set to
+// English can touch-type Ukrainian without installing a layout or
+// switching one. Position-based, so it matches what is printed on a
+// Ukrainian keyboard rather than transliterating.
+const QWERTY_TO_UK = {
+  q: "Й", w: "Ц", e: "У", r: "К", t: "Е", y: "Н", u: "Г", i: "Ш", o: "Щ", p: "З", "[": "Х", "]": "Ї",
+  a: "Ф", s: "І", d: "В", f: "А", g: "П", h: "Р", j: "О", k: "Л", l: "Д", ";": "Ж", "'": "Є", "\\": "Ґ",
+  z: "Я", x: "Ч", c: "С", v: "М", b: "И", n: "Т", m: "Ь", ",": "Б", ".": "Ю",
+};
+
+// Turns a raw key value into a Ukrainian letter, or "" if it isn't one.
+function normalizeTypedKey(raw) {
+  if (typeof raw !== "string" || raw.length !== 1) return "";
+  const upper = raw.toUpperCase();
+  if (UK_LETTERS.includes(upper)) return upper;
+  return QWERTY_TO_UK[raw.toLowerCase()] || "";
+}
+
+function getLetter(k) {
+  return letters[k] || "";
+}
+
+function setLetter(k, ch) {
+  letters[k] = ch;
+  if (letterEls[k]) letterEls[k].textContent = ch;
+}
+
+function typeLetter(ch) {
+  if (!puzzle || puzzleSolved) return;
+  if (!focusedKey || lockedCells.has(focusedKey)) return;
+  const letter = normalizeTypedKey(ch);
+  if (!letter) return;
+
+  const k = focusedKey;
+  setLetter(k, letter);
   checkWordCompletion();
+  // checkWordCompletion clears the selection if that entry completed the
+  // word, so only advance while one is still in play.
   if (activeWordId) {
     const next = nextEditableInWord(activeWordId, k);
     if (next) focusCell(next);
   }
 }
 
-function handleKeydown(e, k) {
-  if (lockedCells.has(k)) {
-    if (e.key !== "Tab") e.preventDefault();
+// Backspace clears the current cell if it has a letter, otherwise steps
+// back and clears that one - the behaviour a text field would give, which
+// is what fingers expect even when there is no text field.
+function backspaceLetter() {
+  if (!puzzle || puzzleSolved || !focusedKey) return;
+  if (!lockedCells.has(focusedKey) && getLetter(focusedKey)) {
+    setLetter(focusedKey, "");
     return;
   }
-  if (e.key === "Backspace" && !inputEls[k].value && activeWordId) {
-    const w = wordById[activeWordId];
-    const keys = w.cells.map(([r, c]) => key(r, c));
-    const idx = keys.indexOf(k);
-    for (let i = idx - 1; i >= 0; i--) {
-      if (!lockedCells.has(keys[i])) {
-        focusCell(keys[i]);
-        inputEls[keys[i]].value = "";
-        break;
-      }
-    }
-    e.preventDefault();
+  if (!activeWordId) return;
+  const prev = prevEditableInWord(activeWordId, focusedKey);
+  if (prev) {
+    focusCell(prev);
+    setLetter(prev, "");
   }
 }
+
+// Step within the word in play, skipping cells already locked in.
+function moveFocus(delta) {
+  if (!activeWordId || !focusedKey) return;
+  const next = delta < 0 ? prevEditableInWord(activeWordId, focusedKey) : nextEditableInWord(activeWordId, focusedKey);
+  if (next) focusCell(next);
+}
+
+// A physical keyboard still works, and still matters: this is a website
+// before it is a phone app, and someone on a laptop with a Ukrainian
+// layout should just type. Ignored while a real form field has focus, so
+// the custom-grid row/column boxes keep working.
+document.addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const active = document.activeElement;
+  if (active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA")) return;
+  if (!puzzle || playScreen.hidden) return;
+
+  if (e.key === "Backspace") {
+    backspaceLetter();
+    e.preventDefault();
+  } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+    moveFocus(-1);
+    e.preventDefault();
+  } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+    moveFocus(1);
+    e.preventDefault();
+  } else if (normalizeTypedKey(e.key)) {
+    typeLetter(e.key);
+    e.preventDefault();
+  }
+});
 
 function checkWordCompletion() {
   puzzle.words.forEach((w) => {
     if (lockedWords.has(w.id)) return;
     const keys = w.cells.map(([r, c]) => key(r, c));
-    const current = keys.map((kk) => inputEls[kk].value).join("");
+    const current = keys.map((kk) => getLetter(kk)).join("");
     if (current.length === w.answer.length && current === w.answer) {
       lockedWords.add(w.id);
       keys.forEach((kk, i) => {
         lockedCells.add(kk);
-        inputEls[kk].dataset.letter = w.answer[i];
         cellEls[kk].classList.add("locked", "just-locked");
         cellEls[kk].classList.remove("highlight", "focused");
         // Transient - .just-locked only exists to trigger the CSS pop
@@ -325,7 +310,6 @@ function checkWordCompletion() {
         activeWordId = null;
         focusedKey = null;
         showClueBar(null);
-        if (document.activeElement) document.activeElement.blur();
       }
     }
   });
@@ -365,7 +349,7 @@ function useHint() {
   let idx = -1;
   for (let n = 0; n < keys.length; n++) {
     const i = (start + n) % keys.length;
-    if (!lockedCells.has(keys[i]) && inputEls[keys[i]].value !== word.answer[i]) {
+    if (!lockedCells.has(keys[i]) && getLetter(keys[i]) !== word.answer[i]) {
       idx = i;
       break;
     }
@@ -373,7 +357,7 @@ function useHint() {
   if (idx === -1) return;
 
   const k = keys[idx];
-  inputEls[k].value = word.answer[idx];
+  setLetter(k, word.answer[idx]);
   cellEls[k].classList.add("hinted");
   hintsUsed++;
   hintedWords.add(word.id);
@@ -466,7 +450,8 @@ function showResults(result, secs, record, streak = null) {
 function renderPuzzle(p) {
   puzzle = p;
   cellEls = {};
-  inputEls = {};
+  letterEls = {};
+  letters = {};
   cellWordsMap = {};
   wordById = {};
   activeWordId = null;
@@ -541,21 +526,19 @@ function renderPuzzle(p) {
           });
         }
       } else {
+        // A plain <span>, not an <input>. Nothing in the grid is a form
+        // field any more, so the OS keyboard never opens over the puzzle,
+        // there is no caret for iOS to chase or magnify, and the player
+        // is not made to switch layouts to type Ukrainian. Letters come
+        // from the in-app keyboard and from physical keys - see
+        // typeLetter().
         div.className = "cell letter";
-        const input = document.createElement("input");
-        // Deliberately no maxLength. A full maxLength=1 field silently
-        // rejects the next keystroke, which is why focusCell used to
-        // select() the letter first - and that select() is what raises
-        // iOS's magnifier on every tap. Without the cap, typing into a
-        // filled cell appends and handleInput trims to the last valid
-        // character, so overwriting works from any caret position.
-        input.autocomplete = "off";
-        input.inputMode = "text";
-        inputEls[k] = input;
-        div.appendChild(input);
+        const span = document.createElement("span");
+        span.className = "cell-letter-text";
+        span.textContent = letters[k] || "";
+        letterEls[k] = span;
+        div.appendChild(span);
         div.addEventListener("click", () => handleCellClick(k));
-        input.addEventListener("keydown", (e) => handleKeydown(e, k));
-        input.addEventListener("input", (e) => handleInput(e, k));
       }
 
       cellEls[k] = div;
@@ -567,6 +550,7 @@ function renderPuzzle(p) {
   if (p.words.length) selectWord(p.words[0].id, true);
 
   statsbarEl.hidden = false;
+  updateKeyboardVisibility();
   parValueEl.textContent = formatTime(parTimeSeconds(p.words.length));
   updateStats();
   startTimer();
@@ -857,7 +841,7 @@ document.getElementById("checkBtn").addEventListener("click", () => {
     w.cells.forEach(([r, c]) => {
       const k = key(r, c);
       total++;
-      if (inputEls[k].value) filled++;
+      if (getLetter(k)) filled++;
     });
   });
   checkWordCompletion();
@@ -873,9 +857,8 @@ document.getElementById("checkBtn").addEventListener("click", () => {
 
 document.getElementById("resetBtn").addEventListener("click", () => {
   if (!puzzle) return;
-  Object.keys(inputEls).forEach((k) => {
-    inputEls[k].value = "";
-    delete inputEls[k].dataset.letter;
+  Object.keys(letterEls).forEach((k) => {
+    setLetter(k, "");
     cellEls[k].classList.remove("locked", "hinted");
   });
   lockedWords = new Set();
@@ -899,6 +882,97 @@ document.getElementById("resetBtn").addEventListener("click", () => {
 
 document.getElementById("hintBtn").addEventListener("click", useHint);
 
+// --- the in-app keyboard ----------------------------------------------
+// Standard Ukrainian ЙЦУКЕН, so the muscle memory of anyone who types
+// Ukrainian carries straight over. Note what it does not have: Ё, Ъ, Ы
+// and Э are Russian letters and appear in no Ukrainian word, and every
+// answer in the game is checked against this alphabet. Ґ is here even
+// though no answer in the current 100 levels uses it - it is a real
+// Ukrainian letter and future content may.
+//
+// Two reasons this exists rather than the system keyboard. A player whose
+// phone is set to English would otherwise have to switch layouts to play
+// at all, and the OS keyboard opens and closes as focus moves, resizing
+// the viewport under the grid every time. It also means no cell needs to
+// be an <input>, which is what removed the iOS magnifier, the caret
+// chasing and the layout thrash in one go.
+const KEYBOARD_ROWS = [
+  ["Й", "Ц", "У", "К", "Е", "Н", "Г", "Ш", "Щ", "З", "Х", "Ї"],
+  ["Ф", "І", "В", "А", "П", "Р", "О", "Л", "Д", "Ж", "Є", "Ґ"],
+  [
+    { action: "left", label: "◀", aria: "Попередня клітинка" },
+    "Я",
+    "Ч",
+    "С",
+    "М",
+    "И",
+    "Т",
+    "Ь",
+    "Б",
+    "Ю",
+    { action: "back", label: "⌫", aria: "Стерти" },
+    { action: "right", label: "▶", aria: "Наступна клітинка" },
+  ],
+];
+
+const keyboardEl = document.getElementById("keyboard");
+
+function buildKeyboard() {
+  const frag = document.createDocumentFragment();
+  KEYBOARD_ROWS.forEach((row) => {
+    const rowEl = document.createElement("div");
+    rowEl.className = "kb-row";
+    row.forEach((entry) => {
+      const spec = typeof entry === "string" ? { letter: entry } : entry;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "kb-key" + (spec.action ? " kb-key-action" : "");
+      btn.textContent = spec.letter || spec.label;
+      btn.setAttribute("aria-label", spec.aria || spec.letter);
+      if (spec.letter) btn.dataset.letter = spec.letter;
+      // pointerdown, not click: it fires on finger-down so the key
+      // responds immediately, and preventDefault stops the browser
+      // treating the press as a focus change or a double-tap.
+      btn.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        if (spec.letter) typeLetter(spec.letter);
+        else if (spec.action === "back") backspaceLetter();
+        else if (spec.action === "left") moveFocus(-1);
+        else if (spec.action === "right") moveFocus(1);
+      });
+      rowEl.appendChild(btn);
+    });
+    frag.appendChild(rowEl);
+  });
+  keyboardEl.appendChild(frag);
+}
+
+buildKeyboard();
+
+// The keyboard is shown while a puzzle is open and hidden everywhere
+// else, and can be folded away for a full view of a large grid.
+let keyboardHidden = false;
+
+function updateKeyboardVisibility() {
+  const playing = !playScreen.hidden && !!puzzle;
+  keyboardEl.hidden = !playing || keyboardHidden;
+  const toggle = document.getElementById("keyboardToggle");
+  toggle.hidden = !playing;
+  toggle.setAttribute("aria-pressed", String(!keyboardHidden));
+  toggle.textContent = keyboardHidden ? "⌨ Показати" : "⌨ Сховати";
+  // The bar is fixed to the bottom of the viewport, so the play screen has
+  // to reserve exactly its height or the controls sit behind it. Measured
+  // rather than hardcoded: the height depends on the safe-area inset,
+  // which varies by device.
+  const height = keyboardEl.hidden ? 0 : keyboardEl.offsetHeight;
+  document.documentElement.style.setProperty("--kb-height", height + "px");
+}
+
+document.getElementById("keyboardToggle").addEventListener("click", () => {
+  keyboardHidden = !keyboardHidden;
+  updateKeyboardVisibility();
+});
+
 // --- campaign ladder ---------------------------------------------------
 const homeScreen = document.getElementById("homeScreen");
 const menuScreen = document.getElementById("menuScreen");
@@ -917,6 +991,7 @@ function showScreen(name) {
   Object.entries(SCREENS).forEach(([key, el]) => {
     el.hidden = key !== name;
   });
+  updateKeyboardVisibility();
 }
 
 function showHome() {

@@ -159,8 +159,7 @@ check("a level loads and renders offline", (await offlinePage.locator("#grid .ce
 const solved = await offlinePage.evaluate(async () => {
   puzzle.words.forEach((w) =>
     w.cells.forEach(([r, c], i) => {
-      const input = inputEls[r + "-" + c];
-      input.value = w.answer[i];
+      setLetter(r + "-" + c, w.answer[i]);
     })
   );
   checkWordCompletion();

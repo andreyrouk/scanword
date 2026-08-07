@@ -1,15 +1,17 @@
 // Mobile grid interaction.  node tools/test-mobile.mjs
 //
-// Covers the touch-drag fix and the typing behaviour it depends on.
+// Covers the in-app keyboard, the layout rules that make a grid readable
+// and swipeable on a phone, and panning.
 //
-// What this can and cannot prove: the reported symptom is iOS Safari's
-// text-selection magnifier hijacking a drag that starts on a letter cell,
-// and no engine available here renders that UI - Chromium pans on inputs
-// where iOS selects. So these tests verify the *mechanism* (selection is
-// off on the input, no selection range is ever created by a tap) and,
-// more importantly, that the changes made to achieve it did not break
-// typing, which is where the actual regression risk lives. Confirming the
-// magnifier is gone needs a real iPhone.
+// The load-bearing fact is that no cell is a form field any more. That is
+// what keeps the OS keyboard shut and removes every caret the browser
+// could chase or magnify, so the tests assert it directly rather than
+// asserting properties of an <input> that should not exist.
+//
+// Only Chromium is available here, so iOS-specific UI (the selection
+// magnifier, the system keyboard) still cannot be rendered. What can be
+// checked is the structure that made those problems possible, plus every
+// bit of the typing behaviour that replaced them.
 
 import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
@@ -67,96 +69,177 @@ await page.waitForFunction(() => document.querySelectorAll("#grid .cell.letter")
 
 const dims = await page.evaluate(() => ({ rows: puzzle.rows, cols: puzzle.cols }));
 
-// --- the mechanism ----------------------------------------------------
-const sel = await page.evaluate(() => {
-  const input = document.querySelector("#grid .cell.letter input");
-  const cs = getComputedStyle(input);
+// --- no form fields in the grid --------------------------------------
+// This is the whole reason the OS keyboard stays shut and there is no
+// caret to chase or magnify. Asserted structurally, because a single
+// stray <input> would quietly bring all of it back.
+const structure = await page.evaluate(() => {
+  const cell = document.querySelector("#grid .cell.letter");
   const clue = document.querySelector("#grid .cell.clue");
   return {
-    input: cs.userSelect || cs.webkitUserSelect,
-    touchAction: cs.touchAction,
-    clue: clue ? getComputedStyle(clue).userSelect : null,
+    inputs: document.querySelectorAll("#grid input, #grid textarea, #grid [contenteditable]").length,
+    letterSpans: document.querySelectorAll("#grid .cell.letter .cell-letter-text").length,
+    letterCells: document.querySelectorAll("#grid .cell.letter").length,
+    cellSelect: getComputedStyle(cell).userSelect || getComputedStyle(cell).webkitUserSelect,
+    clueSelect: getComputedStyle(clue).userSelect,
+    gridTouch: getComputedStyle(document.getElementById("grid")).touchAction,
   };
 });
-check("letter input does not take text selection", sel.input === "none", `got "${sel.input}"`);
-check(
-  "letter cells match clue cells, which already dragged fine",
-  sel.input === sel.clue,
-  `input "${sel.input}" vs clue "${sel.clue}"`
-);
-check("double-tap-to-zoom is off inside the grid", sel.touchAction === "manipulation", `got "${sel.touchAction}"`);
+check("no cell is a form field", structure.inputs === 0, `${structure.inputs} found`);
+check("every letter cell renders its letter as text", structure.letterSpans === structure.letterCells);
+check("letter cells take no text selection", structure.cellSelect === "none", `got "${structure.cellSelect}"`);
+check("letter cells match clue cells, which always panned fine", structure.cellSelect === structure.clueSelect);
 
-// A tap must leave a collapsed caret, never a selection range - the range
-// is what summons the magnifier and the drag handles.
-const firstKey = await page.evaluate(() => {
-  const w = puzzle.words[0];
-  const [r, c] = w.cells[1]; // not the first cell, to catch off-by-one focus
-  return r + "-" + c;
+// --- the keyboard -----------------------------------------------------
+const kb = await page.evaluate(() => {
+  const keys = [...document.querySelectorAll("#keyboard .kb-key")];
+  return {
+    letters: keys.filter((b) => b.dataset.letter).map((b) => b.dataset.letter),
+    actions: keys.filter((b) => !b.dataset.letter).map((b) => b.textContent),
+    visible: !document.getElementById("keyboard").hidden,
+    minHeight: Math.min(...keys.map((b) => Math.round(b.getBoundingClientRect().height))),
+    touch: getComputedStyle(document.getElementById("keyboard")).touchAction,
+  };
 });
-await page.evaluate((k) => cellEls[k].dispatchEvent(new MouseEvent("click", { bubbles: true })), firstKey);
-const caret = await page.evaluate((k) => {
-  const i = inputEls[k];
-  return { start: i.selectionStart, end: i.selectionEnd, focused: document.activeElement === i };
-}, firstKey);
-check("tapping a cell focuses it", caret.focused);
-check("tapping a cell creates no selection range", caret.start === caret.end, `${caret.start}-${caret.end}`);
-
-// --- typing still works (the regression risk of removing select()) ----
-await page.keyboard.type("Ж");
-check("typing into an empty cell writes the letter", (await page.evaluate((k) => inputEls[k].value, firstKey)) === "Ж");
-
-// Re-tap the filled cell and type again: it must replace, not be ignored.
-// This is what maxLength=1 + select() used to guarantee.
-await page.evaluate((k) => cellEls[k].dispatchEvent(new MouseEvent("click", { bubbles: true })), firstKey);
-await page.keyboard.type("Ц");
+const UK = "АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯ";
+check("the keyboard is showing during play", kb.visible);
+check("it has all 33 Ukrainian letters", kb.letters.length === 33, `${kb.letters.length} keys`);
 check(
-  "typing into a filled cell replaces the letter",
-  (await page.evaluate((k) => inputEls[k].value, firstKey)) === "Ц",
-  "maxLength=1 would have silently rejected this"
+  "every Ukrainian letter is present exactly once",
+  [...UK].every((c) => kb.letters.filter((x) => x === c).length === 1),
+  [...UK].filter((c) => !kb.letters.includes(c)).join("") || "ok"
 );
-
-// The nastier case: caret parked at the start, which is where a tap on the
-// left half of a filled cell leaves it if focusCell did not intervene.
-await page.evaluate((k) => {
-  const i = inputEls[k];
-  i.focus();
-  i.setSelectionRange(0, 0);
-}, firstKey);
-await page.keyboard.type("Б");
 check(
-  "typing replaces even with the caret before the letter",
-  (await page.evaluate((k) => inputEls[k].value, firstKey)) === "Б",
-  "a naive slice(-1) would keep the old letter here"
+  "no Russian-only letters",
+  !kb.letters.some((c) => "ЁЪЫЭ".includes(c)),
+  kb.letters.filter((c) => "ЁЪЫЭ".includes(c)).join("")
 );
+check("it has backspace and both cursor keys", kb.actions.length === 3, kb.actions.join(" "));
+check("keys are tall enough to hit", kb.minHeight >= 40, `${kb.minHeight}px`);
+check("keyboard gestures never scroll or zoom", kb.touch === "manipulation", kb.touch);
 
-// A cell never holds more than one character, whatever gets thrown at it.
-await page.evaluate((k) => {
-  const i = inputEls[k];
-  i.focus();
-  i.value = "СЛОВО";
-  i.dispatchEvent(new Event("input", { bubbles: true }));
-}, firstKey);
-check("a multi-character paste collapses to one letter", (await page.evaluate((k) => inputEls[k].value, firstKey)) === "О");
+// Tapping a key must enter a letter and advance, without any cell ever
+// taking DOM focus.
+const firstKey = await page.evaluate(() => {
+  const w = puzzle.words.find((x) => x.dir === "across") || puzzle.words[0];
+  selectWord(w.id, true);
+  return { k: focusedKey, wordId: w.id };
+});
 
-// --- solving by typing, on touch --------------------------------------
-await page.evaluate((k) => {
-  inputEls[k].value = "";
+async function tapKey(label) {
+  await page.locator(`#keyboard .kb-key`, { hasText: new RegExp(`^${label}$`) }).first().dispatchEvent("pointerdown");
+}
+
+await tapKey("Ж");
+const afterKey = await page.evaluate((info) => ({
+  letter: getLetter(info.k),
+  shown: letterEls[info.k].textContent,
+  advanced: focusedKey !== info.k,
+  activeIsBody: document.activeElement === document.body || !document.activeElement.closest("#grid"),
+}), firstKey);
+check("tapping a key writes the letter", afterKey.letter === "Ж");
+check("the cell displays it", afterKey.shown === "Ж");
+check("focus advances to the next cell", afterKey.advanced);
+check("no grid element ever takes DOM focus, so no OS keyboard opens", afterKey.activeIsBody);
+
+// Backspace: clears the current cell, then steps back and clears that one.
+await page.evaluate(() => moveFocus(-1));
+await tapKey("⌫");
+check("backspace clears the current cell", (await page.evaluate((i) => getLetter(i.k), firstKey)) === "");
+
+await page.evaluate((i) => {
+  focusCell(i.k);
 }, firstKey);
-const typed = await page.evaluate(async () => {
-  // Type every answer through the real input path rather than assigning
-  // values, so handleInput/advance/lock are all exercised.
+await tapKey("Ж");
+await tapKey("З");
+const secondKeyCell = await page.evaluate((i) => nextEditableInWord(i.wordId, i.k), firstKey);
+await tapKey("⌫");
+check("backspace on an empty cell steps back and clears", (await page.evaluate((k) => getLetter(k), secondKeyCell)) === "");
+
+// Cursor keys move within the word.
+const moved = await page.evaluate((i) => {
+  focusCell(i.k);
+  const start = focusedKey;
+  moveFocus(1);
+  const fwd = focusedKey;
+  moveFocus(-1);
+  return { start, fwd, back: focusedKey };
+}, firstKey);
+check("the cursor keys move within the word", moved.fwd !== moved.start && moved.back === moved.start);
+
+// Typing into a filled cell replaces the letter, from any state.
+await page.evaluate((i) => {
+  focusCell(i.k);
+  setLetter(i.k, "Я");
+}, firstKey);
+await tapKey("Ц");
+check("typing over a filled cell replaces it", (await page.evaluate((i) => getLetter(i.k), firstKey)) === "Ц");
+
+// A physical keyboard still works - this is a website too. And an English
+// layout types Ukrainian by key position, so nobody has to switch layouts
+// on a laptop either.
+await page.evaluate((i) => {
+  focusCell(i.k);
+  setLetter(i.k, "");
+}, firstKey);
+await page.keyboard.press("KeyF"); // 'f' sits where 'А' is on ЙЦУКЕН
+check(
+  "an English-layout key types the Ukrainian letter in that position",
+  (await page.evaluate((i) => getLetter(i.k), firstKey)) === "А",
+  "f -> А"
+);
+// Cyrillic keys are dispatched directly rather than via keyboard.type():
+// Playwright sends non-ASCII through Input.insertText, which never fires
+// a keydown, so it cannot exercise the handler under test at all.
+const cyrillic = await page.evaluate((i) => {
+  const press = (key) => document.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+  focusCell(i.k);
+  setLetter(i.k, "");
+  press("д");
+  const typed = getLetter(i.k);
+  focusCell(i.k);
+  setLetter(i.k, "");
+  press("ы"); // Russian-only, and in no Ukrainian word
+  const rejected = getLetter(i.k);
+  return { typed, rejected };
+}, firstKey);
+check("a Ukrainian key types itself", cyrillic.typed === "Д", cyrillic.typed);
+check("a Russian-only letter is rejected", cyrillic.rejected === "", cyrillic.rejected);
+
+// The document-level keydown handler must keep its hands off real form
+// controls, or the custom-grid row/column boxes become untypeable.
+const guarded = await page.evaluate((i) => {
+  focusCell(i.k);
+  setLetter(i.k, "");
+  const probe = document.createElement("input");
+  document.body.appendChild(probe);
+  probe.focus();
+  const focusedProbe = document.activeElement === probe;
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "f", bubbles: true, cancelable: true }));
+  const leaked = getLetter(i.k);
+  probe.remove();
+  return { focusedProbe, leaked };
+}, firstKey);
+check("a focused form field keeps its own keys", guarded.focusedProbe && guarded.leaked === "", `grid got "${guarded.leaked}"`);
+
+// --- solving with the keyboard ----------------------------------------
+const typed = await page.evaluate(() => {
+  // Every answer through the real entry path, so advance/lock/complete
+  // are all exercised rather than the state being assigned.
   for (const w of puzzle.words) {
+    selectWord(w.id, false);
+    // Per cell, not per keystroke: crossing words leave some cells already
+    // locked, so the nth letter of the answer is not the nth letter typed.
     w.cells.forEach(([r, c], i) => {
-      const input = inputEls[r + "-" + c];
-      input.value = "";
-      input.focus();
-      input.value = w.answer[i];
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+      const k = r + "-" + c;
+      if (lockedCells.has(k)) return;
+      focusCell(k);
+      typeLetter(w.answer[i]);
     });
   }
   return { solved: puzzleSolved, locked: lockedWords.size, total: puzzle.words.length };
 });
-check("a full grid still solves through the input path", typed.solved && typed.locked === typed.total, JSON.stringify(typed));
+check("a full grid solves through the keyboard path", typed.solved && typed.locked === typed.total, JSON.stringify(typed));
 
 // Back to an unsolved grid: everything below needs live, unlocked words.
 await page.click("#resetBtn");
@@ -351,12 +434,10 @@ const selectionBefore = await page.evaluate(() => {
   selectWord(w.id, true);
   return { wordId: activeWordId, focusedKey, clue: document.getElementById("cluebarText").textContent };
 });
-check("a word is selected and focused to begin with", await page.evaluate(() => document.activeElement.tagName === "INPUT"));
 
 await touchPan("#grid .cell.letter", -140, -60);
 
 const afterPan = await page.evaluate((before) => ({
-  stillFocusedInput: document.activeElement && document.activeElement.tagName === "INPUT" && !!document.activeElement.closest(".cell"),
   wordId: activeWordId,
   focusedKey,
   clue: document.getElementById("cluebarText").textContent,
@@ -367,13 +448,14 @@ const afterPan = await page.evaluate((before) => ({
   same: activeWordId === before.wordId && focusedKey === before.focusedKey,
 }), selectionBefore);
 
-check("panning releases the caret, so the browser stops chasing it", !afterPan.stillFocusedInput);
 check("the pan actually moved the grid", afterPan.scrolled > 0, `scrollLeft ${afterPan.scrolled}`);
 check("the selected word survives a pan", afterPan.same, `${afterPan.wordId} / ${afterPan.focusedKey}`);
 check("the word stays highlighted", afterPan.highlighted > 0 && afterPan.focusedMark === 1);
 check("the clue bar keeps showing that word's clue", afterPan.barVisible && afterPan.clue === selectionBefore.clue);
 
-// And the grid must stay where it was put - no snap-back to the caret.
+// And the grid must stay where it was put. With no focused input there is
+// nothing the browser wants to scroll back to, which is precisely why
+// this now holds without any special handling.
 const settled = await page.evaluate(() => document.querySelector(".grid-wrap").scrollLeft);
 await page.waitForTimeout(500);
 check(
@@ -382,11 +464,12 @@ check(
   "something scrolled it back"
 );
 
-// A pinch is two fingers and is never a tap: drop the caret immediately.
+// Two-finger touch: a pinch must not disturb the selection either.
 await page.evaluate(() => {
   const w = puzzle.words.find((x) => !lockedWords.has(x.id));
   selectWord(w.id, true);
 });
+const beforePinch = await page.evaluate(() => ({ wordId: activeWordId, focusedKey }));
 await client.send("Input.dispatchTouchEvent", {
   type: "touchStart",
   touchPoints: [
@@ -396,54 +479,54 @@ await client.send("Input.dispatchTouchEvent", {
 });
 await client.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
 await page.waitForTimeout(100);
-const afterPinch = await page.evaluate(() => ({
-  focused: document.activeElement && document.activeElement.tagName === "INPUT" && !!document.activeElement.closest(".cell"),
-  wordId: activeWordId,
+const afterPinch = await page.evaluate((before) => ({
+  same: activeWordId === before.wordId && focusedKey === before.focusedKey,
   barVisible: !document.getElementById("cluebar").hidden,
-}));
-check("pinching releases the caret too", !afterPinch.focused);
-check("pinching keeps the selection", afterPinch.wordId !== null && afterPinch.barVisible);
+}), beforePinch);
+check("pinching keeps the selection", afterPinch.same && afterPinch.barVisible);
 
-// A tap has some travel in it; that must not be mistaken for a pan and
-// close the keyboard on someone who is trying to type.
-await page.evaluate(() => {
-  const w = puzzle.words.find((x) => !lockedWords.has(x.id));
-  selectWord(w.id, true);
-});
-await touchPan("#grid .cell.letter", 4, 3);
-check(
-  "a slightly sloppy tap keeps the caret",
-  await page.evaluate(() => document.activeElement && document.activeElement.tagName === "INPUT" && !!document.activeElement.closest(".cell")),
-  "the pan threshold is too tight"
-);
-
-// Tapping back in resumes typing where the player left off.
+// Typing must still work straight after panning - no re-tap needed, since
+// the keyboard is on screen and the selection never went anywhere.
 const resumed = await page.evaluate(() => {
   const w = puzzle.words.find((x) => !lockedWords.has(x.id));
-  const [r, c] = w.cells[0];
-  cellEls[r + "-" + c].dispatchEvent(new MouseEvent("click", { bubbles: true }));
-  const focused = document.activeElement === inputEls[r + "-" + c];
-  document.activeElement.value = w.answer[0];
-  document.activeElement.dispatchEvent(new Event("input", { bubbles: true }));
-  return { focused, wrote: inputEls[r + "-" + c].value === w.answer[0] };
+  selectWord(w.id, true);
+  const k = focusedKey;
+  const before = getLetter(k);
+  typeLetter(w.answer[0]);
+  return { k, before, after: getLetter(k), expected: w.answer[0] };
 });
-check("tapping a cell after panning restores the caret", resumed.focused);
-check("and typing works again immediately", resumed.wrote);
+check("typing works immediately after a pan, with no re-tap", resumed.after === resumed.expected, `${resumed.before} -> ${resumed.after}`);
+
+// --- the keyboard can be folded away ----------------------------------
+const folded = await page.evaluate(() => {
+  document.getElementById("keyboardToggle").click();
+  const hidden = document.getElementById("keyboard").hidden;
+  document.getElementById("keyboardToggle").click();
+  return { hidden, backAgain: !document.getElementById("keyboard").hidden };
+});
+check("the keyboard can be hidden for a full view of the grid", folded.hidden);
+check("and brought back", folded.backAgain);
+
+// And it is not left hanging around outside a puzzle.
+await page.click("#backBtn");
+check("the keyboard is gone on the level list", await page.evaluate(() => document.getElementById("keyboard").hidden));
+await page.evaluate((n) => loadLadderLevel(n), bigN);
+await page.waitForFunction(() => document.querySelectorAll("#grid .cell.letter").length > 0, null, { timeout: 20000 });
+check("and back when a puzzle opens", await page.evaluate(() => !document.getElementById("keyboard").hidden));
 
 // A solved word is no longer "in play", so the bar must clear.
 const cleared = await page.evaluate(() => {
   const w = puzzle.words.find((x) => !lockedWords.has(x.id)) || puzzle.words[0];
   selectWord(w.id, false);
   w.cells.forEach(([r, c], i) => {
-    const input = inputEls[r + "-" + c];
-    input.value = "";
-    input.focus();
-    input.value = w.answer[i];
-    input.dispatchEvent(new Event("input", { bubbles: true }));
+    const k = r + "-" + c;
+    if (lockedCells.has(k)) return;
+    focusCell(k);
+    typeLetter(w.answer[i]);
   });
-  return document.getElementById("cluebar").hidden;
+  return { hidden: document.getElementById("cluebar").hidden, locked: lockedWords.has(w.id) };
 });
-check("completing the selected word clears the bar", cleared);
+check("completing the selected word locks it and clears the bar", cleared.locked && cleared.hidden);
 
 await page.screenshot({ path: "/tmp/scanword-mobile.png" });
 await browser.close();
