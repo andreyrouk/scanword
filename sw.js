@@ -20,10 +20,13 @@
 // without it. It gets cached the first time someone actually generates a
 // grid, and is then available offline like everything else.
 //
-// Bump CACHE_VERSION when the precache list changes; activate deletes
-// every cache that isn't the current one.
+// Bump CACHE_VERSION when the precache list changes - and also when a
+// level file's *contents* change, since level JSON is cache-first and
+// never revalidated. Editing a clue in place is exactly that case: without
+// a bump, everyone with the app already installed keeps the old text
+// forever. activate deletes every cache that isn't the current one.
 
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2"; // v2: clue fixes rewrote level files in place
 const CACHE_NAME = `scanword-${CACHE_VERSION}`;
 
 // Everything needed to open the app and reach a puzzle. Relative URLs

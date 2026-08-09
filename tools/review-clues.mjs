@@ -39,6 +39,15 @@ const limit = args.includes("--limit") ? parseInt(args[args.indexOf("--limit") +
 // first pass at this analysis.)
 const CHECKS = [
   {
+    id: "self-spoiling",
+    label: "clue contains its own answer - gives the game away outright",
+    // Found five of these in the 10k: "Те, що суворе, але воно закон" for
+    // ЗАКОН, and subtler ones where the answer hides inside a longer word
+    // ("Подарунок" for ДАР, "Буковині" for БУК). Apostrophes are stripped
+    // because answers carry none, so ДЕВЯТЬ has to match "дев'ять".
+    test: (e) => e.clue.toUpperCase().replace(/['\u2019\u02bc]/g, "").includes(e.word),
+  },
+  {
     id: "mechanical",
     label: "mechanically derivable (no knowledge or wit required)",
     // "Число після трьох" -> ЧОТИРИ. The answer is deducible from the
