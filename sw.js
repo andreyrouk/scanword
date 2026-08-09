@@ -26,8 +26,27 @@
 // a bump, everyone with the app already installed keeps the old text
 // forever. activate deletes every cache that isn't the current one.
 
-const CACHE_VERSION = "v2"; // v2: clue fixes rewrote level files in place
+const CACHE_VERSION = "v3"; // v3: content moved behind content-config.json
 const CACHE_NAME = `scanword-${CACHE_VERSION}`;
+
+// Where content lives. Read from the same content-config.json the page
+// reads, so the worker and the app can never disagree about which content
+// set to hold - a mismatch there would precache one set and play another.
+// A remote base needs CORS, since these become cross-origin requests.
+const BUNDLED_CONTENT_BASE = "data/levels/";
+
+async function contentBase() {
+  try {
+    const res = await fetch("content-config.json", { cache: "no-cache" });
+    if (!res.ok) return BUNDLED_CONTENT_BASE;
+    const config = await res.json();
+    const base = config && config.contentBase;
+    if (!base) return BUNDLED_CONTENT_BASE;
+    return base.endsWith("/") ? base : base + "/";
+  } catch (err) {
+    return BUNDLED_CONTENT_BASE;
+  }
+}
 
 // Everything needed to open the app and reach a puzzle. Relative URLs
 // resolve against the worker's own location, so this all keeps working
@@ -43,32 +62,37 @@ const CORE_ASSETS = [
   "./js/scoring.js",
   "./js/progress.js",
   "./js/daily.js",
+  "./js/content.js",
   "./js/app.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/icon.svg",
-  "./data/levels/ladder.json",
-  "./data/levels/manifest.json",
+  "./content-config.json",
 ];
 
-// Paths whose contents never change once published.
+// Paths whose contents never change once published. content.json is
+// excluded on purpose - it is the index, and noticing a new one is the
+// whole mechanism by which new content arrives.
 function isImmutable(url) {
   return (
-    (url.pathname.includes("/data/levels/") && url.pathname.endsWith(".json") && !url.pathname.endsWith("ladder.json")) ||
+    (url.pathname.endsWith(".json") && !url.pathname.endsWith("content.json") && !url.pathname.endsWith("content-config.json")) ||
     url.pathname.endsWith("/data/dictionary.js") ||
     url.pathname.includes("/icons/")
   );
 }
 
-// The level list is read from ladder.json at install time rather than
-// hardcoded here, so adding levels doesn't mean editing the worker - and
-// the two can't silently drift apart.
-async function levelUrls() {
+// The level list is read from the content index at install time rather
+// than hardcoded here, so publishing levels doesn't mean editing the
+// worker - and the two can't silently drift apart. Returns the index URL
+// as well, so it lands in the cache and the app can open offline.
+async function contentUrls() {
+  const base = await contentBase();
+  const indexUrl = base + "content.json";
   try {
-    const res = await fetch("./data/levels/ladder.json", { cache: "no-cache" });
+    const res = await fetch(indexUrl, { cache: "no-cache" });
     if (!res.ok) return [];
-    const ladder = await res.json();
-    return (ladder.levels || []).map((l) => `./data/levels/${l.file}`);
+    const index = await res.json();
+    return [indexUrl].concat((index.levels || []).map((l) => base + l.file));
   } catch (err) {
     return [];
   }
@@ -98,7 +122,7 @@ self.addEventListener("install", (event) => {
     (async () => {
       const cache = await caches.open(CACHE_NAME);
       await cache.addAll(CORE_ASSETS);
-      await cacheAllBestEffort(cache, await levelUrls());
+      await cacheAllBestEffort(cache, await contentUrls());
     })()
   );
 });
@@ -120,6 +144,13 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("message", (event) => {
   if (event.data === "skip-waiting") self.skipWaiting();
 });
+
+// Recognised by shape rather than by comparing against the configured
+// base: contentBase() is async and the fetch handler has to decide
+// synchronously before calling respondWith.
+function isContentRequest(url) {
+  return url.pathname.endsWith("content.json") || /\/(easy|medium|hard)\/[^/]+\.json$/.test(url.pathname);
+}
 
 async function staleWhileRevalidate(request, cache) {
   const cached = await cache.match(request);
@@ -149,7 +180,11 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
 
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return;
+  // Content may be served from another origin (a CDN), and those requests
+  // are exactly the ones worth caching - skipping them would mean a store
+  // build with remote content had no offline mode at all. Everything else
+  // cross-origin is left to the network.
+  if (url.origin !== self.location.origin && !isContentRequest(url)) return;
 
   event.respondWith(
     (async () => {

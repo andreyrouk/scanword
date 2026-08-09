@@ -203,6 +203,58 @@ approach, not just an insufficient time budget.
 That wall doesn't block bigger puzzles from existing, though - see
 Levels below, which sidesteps it entirely by not generating on request.
 
+## Where content comes from
+
+Nothing in the app names a content path. Every level fetch goes through
+`contentUrl()` in `js/content.js`, resolved against a base that is
+configuration rather than code - so the whole content set can be published
+from a CDN and "here are 100 more levels" costs no app release.
+
+That mattered to get right *before* a store build, not after. Wrapped in a
+native shell, a relative path points at files inside the app bundle, so new
+levels would mean a new binary, a review queue, and nothing at all for
+every player who didn't update.
+
+**The content root** is a directory holding `content.json` plus
+`<tier>/<level>.json`. Bundled at `data/levels/`; remotely it would be
+`https://…/scanword-content/v1/`. Resolution order:
+
+1. `localStorage["scanword.contentBase"]` - an on-device override, so a
+   staging set can be tested on a real phone with no build.
+2. `contentBase` from **`content-config.json`** - the deployed setting, and
+   the one line a store build changes.
+3. `data/levels/` - the copy shipped with the app.
+
+`content-config.json` is read by both `js/content.js` and `sw.js`. One
+source of truth on purpose: if they disagreed, the worker would precache
+one content set while the app played another.
+
+**`contentVersion`** is a SHA-256 digest of the level files themselves, not
+a counter or a build timestamp. So it changes exactly when what a player
+sees changes - including a clue edited in place, which leaves filenames
+alone - and does *not* change on a rebuild that produced identical output.
+`tools/build-ladder.mjs` computes it and folds the quick-play tier lists
+into the same index, so there is one request and one version.
+
+**Failure is not fatal.** The index is fetched network-first, then falls
+back to the last one this device saw, then to the bundled copy - and when
+it falls back to bundled content it resets the base too, or level URLs
+would point at a host that just failed. The index is persisted in
+`localStorage` separately from the service worker cache, because a service
+worker is not guaranteed to run everywhere this app will (notably a
+WKWebView store build) and the game still has to open offline there.
+
+The worker precaches whatever base is configured, including cross-origin
+content - skipping cross-origin requests would leave a store build with
+remote content no offline mode at all. A remote host therefore needs CORS.
+
+`node tools/test-content.mjs` proves it with content served from a
+*genuinely different origin* than the app: the app loads and plays entirely
+from the remote set, a new set published there is picked up with no app
+file touched, and the game still opens and plays from bundled content with
+the host down. Same-origin tests would pass whether or not any of this
+worked.
+
 ## Levels
 
 Puzzles the app actually serves to players come from `data/levels/`, not

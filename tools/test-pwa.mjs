@@ -111,11 +111,12 @@ const cached = await page.evaluate(async () => {
 });
 check("exactly one cache", cached.names.length === 1, cached.names.join(", "));
 check("shell is precached", cached.urls.some((u) => u.endsWith("/index.html")) && cached.urls.some((u) => u.endsWith("/style.css")));
-check("app scripts are precached", cached.urls.filter((u) => u.includes("/js/")).length === 7);
-check("ladder is precached", cached.urls.some((u) => u.endsWith("/data/levels/ladder.json")));
+check("app scripts are precached", cached.urls.filter((u) => u.includes("/js/")).length === 8);
+check("the content index is precached", cached.urls.some((u) => u.endsWith("/content.json")));
+check("the content config is precached", cached.urls.some((u) => u.endsWith("/content-config.json")));
 check("icons are precached", cached.urls.filter((u) => u.includes("/icons/")).length === 3);
 
-const levelFiles = cached.urls.filter((u) => u.includes("/data/levels/") && !u.endsWith("ladder.json") && !u.endsWith("manifest.json"));
+const levelFiles = cached.urls.filter((u) => /\/(easy|medium|hard)\/[^/]+\.json$/.test(u));
 check("all 100 levels are precached", levelFiles.length === 100, `got ${levelFiles.length}`);
 
 // The whole point of splitting the dictionary out: it must NOT be part of

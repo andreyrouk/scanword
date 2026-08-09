@@ -823,8 +823,10 @@ async function runGenerate() {
 generateBtn.addEventListener("click", runGenerate);
 
 // Levels: puzzles pre-generated offline by tools/generate-levels.mjs and
-// committed as static JSON (data/levels/<difficulty>/*.json), listed in
-// data/levels/manifest.json. This is the real path for actually playing
+// published as static JSON, listed in the content index. Every path here
+// goes through contentUrl() (js/content.js) rather than naming
+// data/levels/ directly, so the whole content set can be served from a CDN
+// without touching this file. This is the real path for actually playing
 // the game - it loads instantly because nothing is solved at request
 // time, unlike the "custom size" generator above, which does the full
 // backtracking search live and can take many seconds on bigger grids.
@@ -836,7 +838,6 @@ const levelButtons = {
   medium: document.getElementById("mediumBtn"),
   hard: document.getElementById("hardBtn"),
 };
-let manifestCache = null;
 
 function setActionButtonsDisabled(disabled) {
   generateBtn.disabled = disabled;
@@ -849,18 +850,13 @@ async function loadLevel(difficulty) {
   gridEl.innerHTML = "";
 
   try {
-    if (!manifestCache) {
-      const res = await fetch("data/levels/manifest.json");
-      if (!res.ok) throw new Error("manifest fetch failed: " + res.status);
-      manifestCache = await res.json();
-    }
-    const files = manifestCache[difficulty] || [];
+    const files = (ladder && ladder.tiers && ladder.tiers[difficulty]) || [];
     if (files.length === 0) {
       setStatus("Рівнів цієї складності ще немає.");
       return;
     }
     const file = files[Math.floor(Math.random() * files.length)];
-    const res = await fetch(`data/levels/${difficulty}/${file}`);
+    const res = await fetch(contentUrl(file));
     if (!res.ok) throw new Error("level fetch failed: " + res.status);
     const saved = await res.json();
 
@@ -1148,7 +1144,7 @@ async function loadLadderLevel(n) {
   gridEl.innerHTML = "";
 
   try {
-    const res = await fetch(`data/levels/${lvl.file}`);
+    const res = await fetch(contentUrl(lvl.file));
     if (!res.ok) throw new Error("level fetch failed: " + res.status);
     const saved = await res.json();
 
@@ -1183,7 +1179,7 @@ async function loadDaily() {
   gridEl.innerHTML = "";
 
   try {
-    const res = await fetch(`data/levels/${lvl.file}`);
+    const res = await fetch(contentUrl(lvl.file));
     if (!res.ok) throw new Error("daily fetch failed: " + res.status);
     const saved = await res.json();
 
@@ -1226,11 +1222,18 @@ document.getElementById("nextLevelBtn").addEventListener("click", () => {
   if (currentLevelN !== null) loadLadderLevel(currentLevelN + 1);
 });
 
+let contentInfo = null; // { source, version, previousVersion, updated }
+
 async function initLadder() {
   try {
-    const res = await fetch("data/levels/ladder.json");
-    if (!res.ok) throw new Error("ladder fetch failed: " + res.status);
-    ladder = await res.json();
+    const loaded = await loadContentIndex();
+    ladder = loaded.index;
+    contentInfo = loaded;
+    // Worth knowing when debugging a device: which content set is in play,
+    // where it came from, and whether it just changed under the player.
+    console.info(
+      `content ${loaded.version || "?"} from ${loaded.source} (${contentBase()})` + (loaded.updated ? " - updated" : "")
+    );
   } catch (err) {
     console.error(err);
     ladderEl.textContent = "Не вдалося завантажити рівні.";

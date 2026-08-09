@@ -1,0 +1,4 @@
+{
+  "_comment": "Where the app loads puzzle content from. This file is the single source of truth, read by both js/content.js and sw.js, so the two can never disagree about where content lives. Point contentBase at a URL (https://.../scanword-content/v1/) to ship new levels without shipping a new app build; leave it relative to serve the copy bundled with the app. It must end in a slash and contain content.json plus <tier>/<level>.json.",
+  "contentBase": "data/levels/"
+}

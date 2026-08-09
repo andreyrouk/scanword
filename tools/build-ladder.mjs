@@ -4,7 +4,8 @@
 //   node tools/build-ladder.mjs            # all levels, ordered
 //   node tools/build-ladder.mjs --limit 100
 //
-// Output: data/levels/ladder.json
+// Output: data/levels/content.json - the versioned content index the app
+// loads everything through (see js/content.js).
 //
 // There is no ground truth for "how hard is this scanword" yet - nobody
 // has played them. So this is an explicitly provisional proxy built from
@@ -31,12 +32,17 @@
 // players are the only reliable calibration.
 
 import { readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const CANDIDATES = require("../data/wordlist-candidates.json");
+// generate-levels.mjs writes this as it produces levels. It is a build
+// input only - the app never fetches it, and it is not published; the
+// content index below is what ships.
 const MANIFEST = "data/levels/manifest.json";
-const OUT = "data/levels/ladder.json";
+const LEVELS_DIR = "data/levels";
+const OUT = `${LEVELS_DIR}/content.json`;
 
 const args = process.argv.slice(2);
 const limit = args.includes("--limit") ? parseInt(args[args.indexOf("--limit") + 1], 10) : Infinity;
@@ -48,7 +54,7 @@ const freq = new Map(CANDIDATES.map((c) => [c.word, c.freq]));
 const manifest = JSON.parse(readFileSync(MANIFEST, "utf8"));
 
 function measure(tier, file) {
-  const path = `data/levels/${tier}/${file}`;
+  const path = `${LEVELS_DIR}/${tier}/${file}`;
   const level = JSON.parse(readFileSync(path, "utf8"));
   const letterCells = level.isClue.flat().filter((x) => !x).length;
 
@@ -110,19 +116,44 @@ const ladder = levels.slice(0, limit);
 // player receives should match the difficulty they actually faced.
 const tierFor = (i, total) => (i < total / 3 ? "easy" : i < (total * 2) / 3 ? "medium" : "hard");
 
+const ladderLevels = ladder.map((l, i) => ({
+  n: i + 1,
+  file: l.file,
+  rows: l.rows,
+  cols: l.cols,
+  words: l.words,
+  tier: tierFor(i, ladder.length),
+  difficulty: Number(l.difficulty.toFixed(4)),
+}));
+
+// contentVersion is a digest of the level files themselves, not a counter
+// and not the build timestamp. That means it changes exactly when the
+// content a player would see changes - including a clue edited in place,
+// which leaves filenames untouched - and does NOT change on a rebuild that
+// produced identical output. The app compares it to decide whether it is
+// holding current content.
+function contentVersion(entries) {
+  const hash = createHash("sha256");
+  for (const e of entries.slice().sort((a, b) => a.file.localeCompare(b.file))) {
+    hash.update(e.file);
+    hash.update(readFileSync(`${LEVELS_DIR}/${e.file}`));
+  }
+  return hash.digest("hex").slice(0, 12);
+}
+
+// Tier lists for quick play live in the same index. One request, one
+// version, one thing to point at a CDN - a second file would be a second
+// chance for the two to disagree.
+const tiers = { easy: [], medium: [], hard: [] };
+ladderLevels.forEach((l) => tiers[l.tier].push(l.file));
+
 const out = {
+  contentVersion: contentVersion(ladderLevels),
   generated: new Date().toISOString(),
   weights: WEIGHTS,
-  count: ladder.length,
-  levels: ladder.map((l, i) => ({
-    n: i + 1,
-    file: l.file,
-    rows: l.rows,
-    cols: l.cols,
-    words: l.words,
-    tier: tierFor(i, ladder.length),
-    difficulty: Number(l.difficulty.toFixed(4)),
-  })),
+  count: ladderLevels.length,
+  levels: ladderLevels,
+  tiers,
 };
 writeFileSync(OUT, JSON.stringify(out, null, 2) + "\n");
 
