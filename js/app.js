@@ -37,6 +37,7 @@ const timerValueEl = document.getElementById("timerValue");
 const parValueEl = document.getElementById("parValue");
 const hintsValueEl = document.getElementById("hintsValue");
 const resultsEl = document.getElementById("results");
+const resultsOverlayEl = document.getElementById("resultsOverlay");
 const headerEl = document.querySelector(".header");
 const progressEl = document.getElementById("solveProgress");
 const progressFillEl = document.getElementById("solveProgressFill");
@@ -463,7 +464,47 @@ function finishPuzzle() {
   setStatus("✓ Все правильно!");
 }
 
+function closeResults() {
+  if (resultsOverlayEl.hidden) return;
+  resultsOverlayEl.hidden = true;
+  stopConfetti();
+  // The keyboard was suppressed while the modal was up; if the player
+  // dismissed it to look at the finished grid, put things back as they were.
+  updateKeyboardVisibility();
+}
+
+function openResults() {
+  resultsOverlayEl.hidden = false;
+  // Suppressed rather than left underneath: a keyboard behind a modal is
+  // noise, and on a phone it is a third of the screen.
+  updateKeyboardVisibility();
+  burstConfetti();
+  // Focus the action the player most likely wants, so the modal is
+  // reachable by keyboard and screen reader rather than merely visible.
+  const first = resultsEl.querySelector(".results-actions button:not([hidden])");
+  if (first) {
+    try {
+      first.focus({ preventScroll: true });
+    } catch (err) {
+      first.focus();
+    }
+  }
+}
+
+// Escape dismisses, like any dialog. Deliberately no click-outside-to-close:
+// the buttons are the point of the modal, and a stray tap on the backdrop
+// dropping the player onto a finished grid with no obvious next step is
+// worse than making them choose.
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !resultsOverlayEl.hidden) {
+    closeResults();
+    e.preventDefault();
+  }
+});
+
 function showResults(result, secs, record, streak = null) {
+  const isDaily = currentDailyKey !== null;
+  document.getElementById("resultsTitle").textContent = isDaily ? "Сканворд дня пройдено!" : "Рівень пройдено!";
   document.getElementById("resultsStars").textContent = "★".repeat(result.stars) + "☆".repeat(3 - result.stars);
   document.getElementById("resultsPerfect").hidden = !result.perfect;
   document.getElementById("resultsPoints").textContent = result.points.toLocaleString("uk-UA");
@@ -478,12 +519,16 @@ function showResults(result, secs, record, streak = null) {
   bestEl.textContent = bits.join(" · ");
   bestEl.hidden = bits.length === 0;
 
-  // "Next level" is campaign-only: the daily has no next puzzle to go to.
-  const nextBtn = document.getElementById("nextLevelBtn");
-  nextBtn.hidden = !(currentDailyKey === null && currentLevelN !== null && ladder && currentLevelN < ladder.levels.length);
-  document.getElementById("toMenuBtn").textContent = currentDailyKey !== null ? "До меню" : "До рівнів";
+  // "Next level" is campaign-only: the daily has no next puzzle to go to,
+  // and neither does the last rung of the ladder.
+  document.getElementById("nextLevelBtn").hidden = !(
+    !isDaily && currentLevelN !== null && ladder && currentLevelN < ladder.levels.length
+  );
+  // The level list is where a campaign player wants to go - to watch the
+  // tile turn green and pick the next one. The daily has no list.
+  document.getElementById("toMenuBtn").hidden = isDaily;
 
-  resultsEl.hidden = false;
+  openResults();
 }
 
 function renderPuzzle(p) {
@@ -501,7 +546,7 @@ function renderPuzzle(p) {
   hintsUsed = 0;
   hintedWords = new Set();
   resetTimer();
-  resultsEl.hidden = true;
+  closeResults();
   statusEl.textContent = "";
   showClueBar(null);
 
@@ -923,7 +968,7 @@ document.getElementById("resetBtn").addEventListener("click", () => {
   hintsUsed = 0;
   hintedWords = new Set();
   resetTimer();
-  resultsEl.hidden = true;
+  closeResults();
   clearHighlights();
   activeWordId = null;
   focusedKey = null;
@@ -1008,7 +1053,7 @@ buildKeyboard();
 let keyboardHidden = false;
 
 function updateKeyboardVisibility() {
-  const playing = !playScreen.hidden && !!puzzle;
+  const playing = !playScreen.hidden && !!puzzle && resultsOverlayEl.hidden;
   keyboardEl.hidden = !playing || keyboardHidden;
   const toggle = document.getElementById("keyboardToggle");
   toggle.hidden = !playing;
@@ -1212,13 +1257,26 @@ document.getElementById("backBtn").addEventListener("click", () => {
   else showMenu();
 });
 document.getElementById("toMenuBtn").addEventListener("click", () => {
-  if (currentDailyKey !== null) showHome();
-  else showMenu();
+  closeResults();
+  showMenu();
 });
+document.getElementById("toHomeBtn").addEventListener("click", () => {
+  closeResults();
+  showHome();
+});
+// Replaying from the results panel is the same action as "Спочатку" during
+// a solve, so it goes through the same handler rather than a second copy of
+// the reset logic that could drift out of step with it.
+document.getElementById("replayBtn").addEventListener("click", () => {
+  closeResults();
+  document.getElementById("resetBtn").click();
+});
+document.getElementById("resultsCloseBtn").addEventListener("click", closeResults);
 document.getElementById("levelsBackBtn").addEventListener("click", showHome);
 document.getElementById("playBtn").addEventListener("click", showMenu);
 document.getElementById("dailyBtn").addEventListener("click", loadDaily);
 document.getElementById("nextLevelBtn").addEventListener("click", () => {
+  closeResults();
   if (currentLevelN !== null) loadLadderLevel(currentLevelN + 1);
 });
 

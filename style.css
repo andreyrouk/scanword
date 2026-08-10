@@ -506,22 +506,87 @@ button:active { transform: scale(0.96); }
 /* A hinted letter stays visibly marked for the rest of the solve - the
    player should always be able to see which letters they were given
    rather than earned. */
-.cell.letter.hinted input { color: #b3541e; }
+.cell.letter.hinted .cell-letter-text { color: #b3541e; }
 
-@keyframes resultsIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+/* The results are a modal, not a panel below the grid. Finishing a puzzle
+   used to append a card under the fold, which the player could miss
+   entirely - the overlay covers the grid and the keyboard so there is no
+   question that the level is over. */
+.results-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60; /* above the keyboard (20); the confetti canvas (70) sits above this */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(20, 24, 20, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: overlayIn 200ms ease;
+  /* The page behind must not scroll under the modal on a touch drag. */
+  overscroll-behavior: contain;
+  overflow-y: auto;
 }
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* The pop. Overshoots slightly past full size and settles, which reads as
+   a reaction rather than a panel fading in. */
+@keyframes resultsPop {
+  0% { opacity: 0; transform: scale(0.82) translateY(12px); }
+  60% { opacity: 1; transform: scale(1.03) translateY(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
 .results {
-  margin-top: 20px;
-  padding: 20px 28px;
+  position: relative;
+  padding: 26px 28px 22px;
+  background: var(--bg);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  box-shadow: var(--shadow-md);
+  border-radius: 16px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
   text-align: center;
-  animation: resultsIn 320ms ease;
+  animation: resultsPop 360ms cubic-bezier(0.34, 1.4, 0.64, 1);
   max-width: 340px;
   width: 100%;
+  margin: auto;
+}
+.results-title { font-size: 19px; font-weight: 800; color: var(--ink); margin-bottom: 14px; }
+.results-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+  color: #999;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+.results-close:hover { color: var(--ink); }
+
+/* Above the modal, not behind it. The card is nearly the full width of a
+   phone, so confetti launched from the lower corners passes behind it and
+   is barely seen. pointer-events: none means it still cannot come between
+   the player and the buttons, and it clears itself in ~2s. */
+.confetti {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  pointer-events: none;
+}
+
+/* Motion sensitivity: the confetti is skipped in js/confetti.js, and the
+   modal arrives without the bounce. Everything it says is still said. */
+@media (prefers-reduced-motion: reduce) {
+  .results { animation: none; }
+  .results-overlay { animation: none; }
 }
 .results-stars { font-size: 30px; letter-spacing: 4px; color: var(--green); line-height: 1; }
 .results-perfect {

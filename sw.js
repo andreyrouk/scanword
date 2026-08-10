@@ -26,7 +26,7 @@
 // a bump, everyone with the app already installed keeps the old text
 // forever. activate deletes every cache that isn't the current one.
 
-const CACHE_VERSION = "v3"; // v3: content moved behind content-config.json
+const CACHE_VERSION = "v4"; // v4: results modal + confetti added js/confetti.js
 const CACHE_NAME = `scanword-${CACHE_VERSION}`;
 
 // Where content lives. Read from the same content-config.json the page
@@ -63,6 +63,7 @@ const CORE_ASSETS = [
   "./js/progress.js",
   "./js/daily.js",
   "./js/content.js",
+  "./js/confetti.js",
   "./js/app.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

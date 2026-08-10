@@ -124,6 +124,34 @@ button and level name.
 there is no focused input for the browser to scroll back into view and no
 caret to fight - see Entering letters below.
 
+## Finishing a puzzle
+
+Solving used to append a results card *below* the grid, off the bottom of
+the screen, with no scroll to it - so the most common question after
+finishing was whether you had finished. It is now a modal over the grid and
+the keyboard, which leaves no doubt, and it carries the four things a
+player wants next: next level, restart, the level list, and the main menu.
+The keyboard is suppressed while it is up rather than left underneath, and
+`updateKeyboardVisibility()` treats an open modal as "not playing".
+
+`Escape` and the × dismiss it, for a player who wants to look at the
+finished grid. Deliberately **no** click-outside-to-close: the buttons are
+the point, and a stray tap on the backdrop dropping someone onto a finished
+puzzle with no obvious next step is worse than making them choose. Focus
+moves into the dialog on open so it is reachable by keyboard and screen
+reader, not merely visible.
+
+`js/confetti.js` is the burst - about 80 lines of canvas, hand-rolled
+because the app has no build step and must work offline, so a library would
+cost more than it saves. Two cannons fire inward from the lower corners
+rather than confetti raining from the top: a burst reads as a reaction to
+what the player did, rain reads as weather. The canvas sits *above* the
+modal (`z-index: 70`), since the card is nearly the full width of a phone
+and anything launched from the corners passes behind it otherwise;
+`pointer-events: none` keeps it from ever coming between the player and the
+buttons. `prefers-reduced-motion` skips the confetti and the pop entirely -
+the panel says everything on its own.
+
 ## Entering letters
 
 **No cell is a form field.** Letter cells hold a plain `<span>`, the

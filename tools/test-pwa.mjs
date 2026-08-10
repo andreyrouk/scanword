@@ -111,7 +111,7 @@ const cached = await page.evaluate(async () => {
 });
 check("exactly one cache", cached.names.length === 1, cached.names.join(", "));
 check("shell is precached", cached.urls.some((u) => u.endsWith("/index.html")) && cached.urls.some((u) => u.endsWith("/style.css")));
-check("app scripts are precached", cached.urls.filter((u) => u.includes("/js/")).length === 8);
+check("app scripts are precached", cached.urls.filter((u) => u.includes("/js/")).length === 9);
 check("the content index is precached", cached.urls.some((u) => u.endsWith("/content.json")));
 check("the content config is precached", cached.urls.some((u) => u.endsWith("/content-config.json")));
 check("icons are precached", cached.urls.filter((u) => u.includes("/icons/")).length === 3);
@@ -164,7 +164,7 @@ const solved = await offlinePage.evaluate(async () => {
     })
   );
   checkWordCompletion();
-  return { done: puzzleSolved, results: !document.getElementById("results").hidden };
+  return { done: puzzleSolved, results: !document.getElementById("resultsOverlay").hidden };
 });
 check("puzzle can be completed offline", solved.done && solved.results);
 

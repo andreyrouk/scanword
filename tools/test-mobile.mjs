@@ -250,6 +250,61 @@ const full = await page.evaluate(() => ({
 check("a solved grid reads 100%", full.label === "100%" && full.width === "100%", `${full.label} / ${full.width}`);
 check("and reports it to assistive tech", full.aria === "100", full.aria);
 
+// --- the results modal ------------------------------------------------
+// Finishing used to append a card below the fold that the player could
+// miss entirely. It is now a modal over the grid, so "did I finish?" has
+// only one answer.
+const modal = await page.evaluate(() => {
+  const overlay = document.getElementById("resultsOverlay");
+  const dialog = document.getElementById("results");
+  const visible = (id) => !document.getElementById(id).hidden;
+  return {
+    open: !overlay.hidden,
+    covers: (() => {
+      const box = overlay.getBoundingClientRect();
+      return box.width >= window.innerWidth && box.height >= window.innerHeight;
+    })(),
+    role: dialog.getAttribute("role"),
+    modalAttr: dialog.getAttribute("aria-modal"),
+    title: document.getElementById("resultsTitle").textContent,
+    stars: document.getElementById("resultsStars").textContent,
+    points: document.getElementById("resultsPoints").textContent,
+    meta: document.getElementById("resultsMeta").textContent,
+    keyboardHidden: document.getElementById("keyboard").hidden,
+    confetti: !!document.querySelector("canvas.confetti"),
+    focusInDialog: !!(document.activeElement && document.activeElement.closest("#results")),
+    next: visible("nextLevelBtn"),
+    replay: visible("replayBtn"),
+    toLevels: visible("toMenuBtn"),
+    toHome: visible("toHomeBtn"),
+  };
+});
+check("solving opens the results modal", modal.open);
+check("it covers the whole viewport", modal.covers);
+check("it is announced as a dialog", modal.role === "dialog" && modal.modalAttr === "true");
+check("it says the level is done", /пройдено/.test(modal.title), modal.title);
+check("it shows stars, score and time", /★/.test(modal.stars) && modal.points !== "0" && /Час/.test(modal.meta), modal.meta);
+check("the keyboard is put away behind it", modal.keyboardHidden);
+check("confetti fires", modal.confetti);
+check("focus moves into the dialog", modal.focusInDialog);
+check("it offers next level, restart, levels and main menu", modal.next && modal.replay && modal.toLevels && modal.toHome);
+
+// The overlay must actually block the puzzle underneath, or it is a
+// decoration rather than a modal.
+let blocked = false;
+try {
+  await page.click("#resetBtn", { timeout: 2000 });
+} catch (err) {
+  blocked = true;
+}
+check("the grid controls underneath are not reachable", blocked, "the overlay does not block interaction");
+
+// Escape dismisses, for a player who wants to look at the finished grid.
+await page.keyboard.press("Escape");
+check("Escape closes it", await page.evaluate(() => document.getElementById("resultsOverlay").hidden));
+check("and the confetti is torn down", await page.evaluate(() => !document.querySelector("canvas.confetti")));
+check("and the keyboard comes back", await page.evaluate(() => !document.getElementById("keyboard").hidden));
+
 // Back to an unsolved grid: everything below needs live, unlocked words.
 await page.click("#resetBtn");
 await page.waitForFunction(() => lockedWords.size === 0 && !puzzleSolved, null, { timeout: 5000 });
