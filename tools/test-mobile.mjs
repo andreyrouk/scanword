@@ -469,6 +469,23 @@ const swipeLetter = await swipeGrid("#grid .cell.letter");
 check("swiping the grid from a clue cell scrolls it", swipeClue > 0, `scrollLeft ${swipeClue}`);
 check("swiping the grid from a letter cell scrolls it too", swipeLetter > 0, `scrollLeft ${swipeLetter}`);
 
+// A drag that runs past the end of the grid must be handed on rather than
+// dead-ending. overscroll-behavior-x: contain here meant the wrap ate the
+// gesture and refused to pass it up, so a pinch-zoomed page could not be
+// panned at all once the grid hit its scroll limit.
+const chaining = await page.evaluate(() => {
+  const cs = getComputedStyle(document.querySelector(".grid-wrap"));
+  return { x: cs.overscrollBehaviorX, y: cs.overscrollBehaviorY, touch: cs.touchAction };
+});
+check("the grid does not contain horizontal overscroll", chaining.x === "auto", chaining.x);
+check("nor vertical", chaining.y === "auto", chaining.y);
+check("and it does not block pan or pinch", chaining.touch === "auto" || chaining.touch === "manipulation", chaining.touch);
+
+// The modal is the one place containment is right: a puzzle behind a dialog
+// must not scroll.
+const modalContain = await page.evaluate(() => getComputedStyle(document.getElementById("resultsOverlay")).overscrollBehaviorY);
+check("but the results overlay still contains its own scrolling", modalContain === "contain", modalContain);
+
 // Typing walks across the grid; the cursor must not walk off the screen.
 const followed = await page.evaluate(() => {
   const wrap = document.querySelector(".grid-wrap");

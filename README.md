@@ -76,13 +76,24 @@ drove players to pinch-zoom, and pinch-zoom is what dragged badly.
 **The grid scrolls sideways instead of shrinking.** Past 8 columns the
 grid is deliberately wider than the screen and `.grid-wrap` is the
 surface you swipe - the supported, momentum-scrolled version of what
-pinch-zoom-and-drag was being used for. Two details this depends on:
+pinch-zoom-and-drag was being used for. Three details this depends on:
 `.grid` needs `width: max-content`, or its `overflow: hidden` (which
 rounds the corners) silently *clips* the right-hand columns instead of
-letting them scroll; and `cellSizePx` counts the 1px gaps and border, or
-a grid overflows by a handful of pixels and scrolls for nothing. Grids
+letting them scroll; `cellSizePx` counts the 1px gaps and border, or
+a grid overflows by a handful of pixels and scrolls for nothing (grids
 that miss fitting by up to `FIT_TOLERANCE_PX` give up those pixels rather
-than become scrollable at all.
+than become scrollable at all); and `.grid-wrap` must **not** set
+`overscroll-behavior-x: contain`.
+
+That last one was a real bug. `contain` was there to stop a swipe past the
+end of the grid being read as the browser's back gesture - but it means
+"do not hand this gesture on", so a drag that ran out of grid to scroll
+simply dead-ended. Pinch-zoom in and that happens almost immediately: the
+wrap eats the drag, refuses to pass it up, and the zoomed page cannot be
+panned at all. Chaining is worth the small risk of an edge back-swipe,
+which on iOS needs a drag starting at the very screen edge and the grid is
+inset from it. The results overlay is the one place containment is right -
+the puzzle behind a dialog must not scroll.
 
 **`keepCellInView` follows the cursor, on both axes.** Typing walks across
 a grid wider than the screen, and the in-app keyboard is fixed over the

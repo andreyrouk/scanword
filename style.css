@@ -268,16 +268,22 @@ h1 { font-weight: 700; font-size: 27px; letter-spacing: -0.01em; margin: 0 0 8px
 
 /* The surface the player swipes. Cells have a readable/tappable floor
    (MIN_CELL_PX in js/app.js), so on a phone the grid is deliberately
-   wider than the screen and this scrolls horizontally - which is the
-   supported, momentum-scrolled version of what pinch-zoom-and-drag was
-   being used for. overscroll-behavior-x keeps a swipe that reaches the
-   end of the grid from being taken as the browser's back gesture. */
+   wider than the screen and this scrolls horizontally.
+
+   Deliberately NO overscroll-behavior-x: contain here. It was set to stop a
+   swipe reaching the end of the grid from being read as the browser's back
+   gesture - but `contain` means "do not hand this gesture on", so once the
+   grid was scrolled to its end the drag simply dead-ended. Pinch-zoom in and
+   that is almost immediately: the wrap eats the drag, refuses to pass it up,
+   and the zoomed page cannot be panned at all. Letting it chain costs a
+   small risk of an edge back-swipe (which on iOS needs a drag starting at
+   the very screen edge, and the grid is inset from it) and buys back the
+   ability to move around a zoomed grid, which is what players actually do. */
 .grid-wrap {
   max-width: 100%;
   overflow-x: auto;
   padding-bottom: 4px;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
 }
 
 .grid {
