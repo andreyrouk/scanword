@@ -1081,7 +1081,9 @@ let ladder = null;
 let currentLevelN = null; // null = quick play / custom / daily: no campaign record
 let currentDailyKey = null; // set only while the daily puzzle is in play
 
-const SCREENS = { home: homeScreen, levels: menuScreen, play: playScreen };
+const rulesScreen = document.getElementById("rulesScreen");
+const optionsScreen = document.getElementById("optionsScreen");
+const SCREENS = { home: homeScreen, levels: menuScreen, play: playScreen, rules: rulesScreen, options: optionsScreen };
 
 function showScreen(name) {
   // Leaving a puzzle mid-solve must stop the clock, or an abandoned run
@@ -1108,6 +1110,52 @@ function showMenu() {
   renderLadder();
   updateProgressSummary();
 }
+
+function showRules() {
+  showScreen("rules");
+}
+
+function showOptions() {
+  showScreen("options");
+  const total = ladder ? ladder.levels.length : 0;
+  document.getElementById("optionsProgress").textContent =
+    `Пройдено ${completedCount()} з ${total} рівнів · зірок ${totalStars()} з ${total * 3}.`;
+
+  const streak = getDailyStreak();
+  const today = getDailyResult(dailyDateKey());
+  document.getElementById("optionsDaily").textContent =
+    (today && today.completed ? "Сьогоднішній сканворд пройдено. " : "Сьогоднішній сканворд ще не пройдено. ") +
+    (streak > 0 ? `Серія: ${streak}.` : "Серії немає.");
+
+  // Deliberately shown to the player rather than hidden in a console: when
+  // a device is playing content other than what was published, this is the
+  // first thing worth knowing, and asking someone to open devtools on a
+  // phone is not a diagnostic plan.
+  const version = contentInfo && contentInfo.version ? contentInfo.version : "невідомо";
+  const source = contentInfo ? contentInfo.source : "?";
+  const sourceLabel = { network: "з мережі", saved: "збережений", bundled: "вбудований" }[source] || source;
+  document.getElementById("optionsAbout").textContent =
+    `Набір рівнів: ${version} (${sourceLabel}) · ${total} рівнів · джерело: ${contentBase()}`;
+}
+
+// Both resets are destructive and irreversible, so both confirm. The
+// wording names what is about to be lost rather than asking "are you sure".
+document.getElementById("resetProgressBtn").addEventListener("click", () => {
+  if (!confirm("Скинути весь прогрес: зірки, очки й рекорди на всіх рівнях?")) return;
+  resetProgress();
+  showOptions();
+  updateHomeSummary();
+});
+document.getElementById("resetDailyBtn").addEventListener("click", () => {
+  if (!confirm("Скинути результати сканворда дня разом із серією?")) return;
+  resetDaily();
+  showOptions();
+  updateHomeSummary();
+});
+document.getElementById("rulesBtn").addEventListener("click", showRules);
+document.getElementById("optionsBtn").addEventListener("click", showOptions);
+document.getElementById("rulesBackBtn").addEventListener("click", showHome);
+document.getElementById("optionsBackBtn").addEventListener("click", showHome);
 
 function showPlay(title, { daily = false } = {}) {
   showScreen("play");

@@ -461,6 +461,42 @@ trivial for the clue-writing pass to settle, so that is where they are
 resolved: one pass per batch that answers "is this a Ukrainian noun?" and,
 if so, writes the clue - then human review.
 
+## Reviewing clues
+
+`node tools/review-clues.mjs --shipped` reviews only the clues baked into
+`data/levels/` - the ones players actually meet. That is ~1,000 pairs
+against ~10,000 dictionary entries, which turns "review the clues" into a
+job that finishes. Output goes to `data/clue-review.csv` (gitignored): edit
+the clue column, then `tools/import-words.mjs` and
+`tools/resync-level-clues.mjs --fix`.
+
+The checks that matter most are the **gloss shapes**, and they exist because
+"kid level, not requiring thinking" is a real and separate complaint from
+the mechanical clues fixed earlier:
+
+- `gloss-periphrasis` - "Той, хто складає вірші" for ПОЕТ. A definition
+  wearing a disguise.
+- `gloss-class` - opens by naming the answer's category and then narrows it:
+  "Комаха з жовто-чорним черевцем і жалом" for ОСА.
+- `gloss-instrument` - "Засіб для фіксації зачіски" for ЛАК. Names the tool
+  and its purpose, which *is* the dictionary definition.
+
+**These are candidates, not verdicts.** A gloss over a word most people
+don't know is a legitimate knowledge clue - "Велика притока Міссісіпі на
+сході США" for ОГАЙО asks something real. The same shape over a common word
+asks nothing. Length is not the signal either: "Танк савани" for НОСОРІГ is
+short and good, "Орган зору" for ОКО is short and free. The distinction is
+definition versus inference, and it needs a human per row.
+
+As of writing, 140 of the 1,012 shipped pairs are flagged.
+
+One trap, recorded because it has now bitten twice in this file's own
+history: **never use `\b` in these patterns.** JavaScript defines it over
+`[A-Za-z0-9_]`, so it never matches at a Cyrillic boundary. The
+`gloss-class` check silently matched *nothing* on the first attempt for
+exactly this reason - 0 results that looked like good news. Use
+`(?![а-яіїєґ])`.
+
 ## Viewing and adding words
 
 The dictionary lives in `data/dictionary.js`. For reading or editing it,

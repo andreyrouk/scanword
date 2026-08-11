@@ -37,13 +37,13 @@
         <span class="home-btn-label">Сканворд дня</span>
         <span class="home-btn-sub" id="homeDailySub">—</span>
       </button>
-      <button class="home-btn" id="optionsBtn" disabled>
+      <button class="home-btn" id="optionsBtn">
         <span class="home-btn-label">Налаштування</span>
-        <span class="home-btn-sub">незабаром</span>
+        <span class="home-btn-sub" id="homeOptionsSub">прогрес і дані</span>
       </button>
-      <button class="home-btn" id="rulesBtn" disabled>
+      <button class="home-btn" id="rulesBtn">
         <span class="home-btn-label">Правила</span>
-        <span class="home-btn-sub">незабаром</span>
+        <span class="home-btn-sub">як грати та як рахуються зірки</span>
       </button>
     </nav>
   </div>
@@ -76,6 +76,87 @@
         <button class="btn-primary" id="generateBtn">Згенерувати</button>
       </div>
     </details>
+  </div>
+
+  <!-- Rules. A shell that grows as the game does: it is where any new
+       mechanic gets explained, so new sections go here rather than into
+       tooltips scattered through the UI. -->
+  <div id="rulesScreen" hidden>
+    <div class="play-head">
+      <button class="btn-ghost btn-back" id="rulesBackBtn">← Меню</button>
+      <span class="play-title">Правила</span>
+    </div>
+
+    <div class="prose">
+      <h2>Як влаштований сканворд</h2>
+      <p>У сканворді немає окремого списку питань. Підказка стоїть просто в
+      сітці, а <strong>стрілка</strong> біля неї показує, де починається
+      відповідь і куди вона йде — праворуч або вниз. Стрілка може бути
+      зігнутою: тоді слово починається в наступній клітинці, але йде в
+      інший бік.</p>
+      <p>Чорних клітинок немає. Кожна клітинка — або підказка, або літера
+      якогось слова.</p>
+
+      <h2>Як грати</h2>
+      <ul>
+        <li>Торкніться підказки, щоб перейти до її слова.</li>
+        <li>Торкніться клітинки на перетині двох слів двічі, щоб
+        переключитися між ними.</li>
+        <li>Літери вводяться <strong>клавіатурою внизу екрана</strong> —
+        українською, без перемикання розкладки. На комп'ютері працює і
+        звичайна клавіатура.</li>
+        <li>Слово, вгадане правильно, зафіксується саме — перевіряти
+        вручну не потрібно.</li>
+        <li>Смуга вгорі показує, скільки слів уже розгадано.</li>
+      </ul>
+
+      <h2>Зірки та очки</h2>
+      <p>Кожен рівень має <strong>цільовий час</strong> — приблизно 15
+      секунд на слово. Очки складаються з базових за слова, бонусу за
+      повне розгадування та бонусу за швидкість; за кожну підказку
+      нараховується штраф. Складніші рівні мають вищий множник.</p>
+      <p>Три зірки — рівень пройдено швидше за цільовий час і без
+      підказок. Дві — пройдено без підказок або близько до цілі. Одна —
+      пройдено.</p>
+      <p>Підказка відкриває <strong>одну літеру</strong> у вибраній
+      клітинці, а не все слово.</p>
+
+      <h2>Сканворд дня</h2>
+      <p>Щодня один і той самий складний сканворд для всіх — він
+      змінюється о 00:00 за UTC. Якщо проходити щодня без пропусків,
+      зростає <strong>серія</strong>.</p>
+
+      <h2>Без інтернету</h2>
+      <p>Гру можна встановити на телефон (у браузері — «Додати на
+      початковий екран») і грати повністю без зв'язку.</p>
+    </div>
+  </div>
+
+  <div id="optionsScreen" hidden>
+    <div class="play-head">
+      <button class="btn-ghost btn-back" id="optionsBackBtn">← Меню</button>
+      <span class="play-title">Налаштування</span>
+    </div>
+
+    <div class="prose">
+      <h2>Прогрес</h2>
+      <p id="optionsProgress"></p>
+      <p>
+        <button class="btn-ghost btn-danger" id="resetProgressBtn">Скинути прогрес</button>
+      </p>
+
+      <h2>Сканворд дня</h2>
+      <p id="optionsDaily"></p>
+      <p>
+        <button class="btn-ghost btn-danger" id="resetDailyBtn">Скинути результати дня</button>
+      </p>
+
+      <!-- Which content set this device is holding, and where it came from.
+           Cheap to show and the first thing worth knowing when a phone is
+           playing something other than what was published. -->
+      <h2>Про застосунок</h2>
+      <p class="muted" id="optionsAbout"></p>
+    </div>
   </div>
 
   <div id="playScreen" hidden>

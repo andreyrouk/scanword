@@ -712,6 +712,62 @@ check("so the grid starts near the top of the screen", chrome.gridTop < 260, `${
 await page.click("#backBtn");
 check("and comes back on the level list", await page.evaluate(() => !document.querySelector(".header").hidden));
 
+// --- rules and options -------------------------------------------------
+// Both menu entries were disabled placeholders. Rules is a shell that grows
+// with the game; Options is where destructive actions live, so both resets
+// are checked to actually reset.
+await page.evaluate(() => showHome());
+const menu = await page.evaluate(() => ({
+  rulesEnabled: !document.getElementById("rulesBtn").disabled,
+  optionsEnabled: !document.getElementById("optionsBtn").disabled,
+}));
+check("the Rules and Options menu entries are live", menu.rulesEnabled && menu.optionsEnabled);
+
+await page.click("#rulesBtn");
+const rules = await page.evaluate(() => ({
+  open: !document.getElementById("rulesScreen").hidden,
+  headings: document.querySelectorAll("#rulesScreen .prose h2").length,
+  mentionsArrow: /стрілка/i.test(document.getElementById("rulesScreen").textContent),
+  mentionsStars: /зірк/i.test(document.getElementById("rulesScreen").textContent),
+  headerBack: !document.querySelector(".header").hidden,
+}));
+check("Rules opens", rules.open);
+check("and explains the arrow and the stars", rules.mentionsArrow && rules.mentionsStars);
+check("with several sections to grow into", rules.headings >= 4, `${rules.headings} headings`);
+check("the masthead is back outside play", rules.headerBack);
+await page.click("#rulesBackBtn");
+check("Rules returns to the menu", await page.evaluate(() => !document.getElementById("homeScreen").hidden));
+
+// Options reports live state, including which content set the device holds.
+await page.evaluate(() => {
+  // Clean slate: the layout tests above unlocked all 100 levels, so without
+  // this the assertion below would be reading their leftovers.
+  resetProgress();
+  resetDaily();
+  recordLevelResult(1, { stars: 3, points: 900, timeSec: 60, hints: 0, completed: true });
+  recordDailyResult(dailyDateKey(), { stars: 2, points: 500, timeSec: 120, hints: 1, completed: true });
+});
+await page.click("#optionsBtn");
+const opts = await page.evaluate(() => ({
+  open: !document.getElementById("optionsScreen").hidden,
+  progress: document.getElementById("optionsProgress").textContent,
+  daily: document.getElementById("optionsDaily").textContent,
+  about: document.getElementById("optionsAbout").textContent,
+}));
+check("Options opens", opts.open);
+check("it reports progress", /Пройдено 1 з \d+/.test(opts.progress), opts.progress);
+check("it reports the daily streak", /Серія: 1/.test(opts.daily), opts.daily);
+check("and names the content set and where it came from", /Набір рівнів: [0-9a-f]{12}/.test(opts.about) && /джерело:/.test(opts.about), opts.about);
+
+// Destructive, so it confirms - and must actually clear.
+page.on("dialog", (d) => d.accept());
+await page.click("#resetProgressBtn");
+await page.waitForFunction(() => /Пройдено 0 /.test(document.getElementById("optionsProgress").textContent), null, { timeout: 5000 });
+check("resetting progress clears it", true);
+await page.click("#resetDailyBtn");
+await page.waitForFunction(() => /Серії немає/.test(document.getElementById("optionsDaily").textContent), null, { timeout: 5000 });
+check("resetting the daily clears the streak", true);
+
 await page.screenshot({ path: "/tmp/scanword-mobile.png" });
 await browser.close();
 server.closeAllConnections();

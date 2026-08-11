@@ -99,7 +99,7 @@ h1 { font-weight: 700; font-size: 27px; letter-spacing: -0.01em; margin: 0 0 8px
 /* Body centres its children, so each screen has to be its own centring
    column - otherwise the ladder and grid would left-align inside a
    full-width block. The global [hidden] rule still wins over these. */
-#homeScreen, #menuScreen, #playScreen {
+#homeScreen, #menuScreen, #playScreen, #rulesScreen, #optionsScreen {
   display: flex; flex-direction: column; align-items: center; width: 100%;
 }
 
@@ -170,6 +170,30 @@ h1 { font-weight: 700; font-size: 27px; letter-spacing: -0.01em; margin: 0 0 8px
 .level-tile.current { border-color: var(--green); border-width: 2px; box-shadow: var(--shadow-sm); }
 .level-tile:disabled { cursor: default; opacity: 0.45; }
 .level-tile:disabled .level-tile-n { color: #999; }
+
+/* --- rules / options prose ------------------------------------------- */
+.prose {
+  width: 100%;
+  max-width: 560px;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+.prose h2 {
+  margin: 22px 0 8px;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--green);
+}
+.prose h2:first-child { margin-top: 0; }
+.prose p { margin: 0 0 10px; }
+.prose ul { margin: 0 0 10px; padding-left: 20px; }
+.prose li { margin-bottom: 6px; }
+.prose .muted { color: #888; font-size: 12.5px; }
+.btn-danger { color: #b3541e; border-color: #e3c4ae; }
+.btn-danger:hover { background: #fdf1e9; }
 
 /* --- play screen chrome ---------------------------------------------- */
 .play-head {

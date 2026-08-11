@@ -7,6 +7,9 @@
 //
 // Output: data/clue-review.csv  (word, clue, reasons, length)
 //
+//   --shipped   review only the clues baked into data/levels/, i.e. the ones
+//               players actually meet (~1k, versus ~10k in the dictionary)
+//
 // Round-trips with the existing pipeline: edit the clue column in that
 // CSV, then feed it back through tools/import-words.mjs. Deleting a row
 // means "leave this entry alone", so a reviewer only keeps the rows they
@@ -21,16 +24,40 @@
 // specific* rather than catch-all, and everything still gets a human
 // pass. Precision over recall: a noisy report is a report nobody reads.
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 const DICTIONARY = require("../data/dictionary.js");
 const OUT = "data/clue-review.csv";
+const LEVELS_DIR = "data/levels";
 
 const args = process.argv.slice(2);
 const only = args.includes("--only") ? args[args.indexOf("--only") + 1] : null;
 const limit = args.includes("--limit") ? parseInt(args[args.indexOf("--limit") + 1], 10) : Infinity;
+const shippedOnly = args.includes("--shipped");
+
+// The clues worth arguing about are the ones players actually meet. The
+// dictionary is ~10k entries; the 100 levels use about a tenth of that, so
+// --shipped turns "review the dictionary" into a job that finishes.
+function shippedPairs() {
+  const pairs = new Map();
+  for (const tier of ["easy", "medium", "hard"]) {
+    let files;
+    try {
+      files = readdirSync(`${LEVELS_DIR}/${tier}`);
+    } catch (err) {
+      continue;
+    }
+    for (const file of files) {
+      const level = JSON.parse(readFileSync(`${LEVELS_DIR}/${tier}/${file}`, "utf8"));
+      for (const w of level.words) pairs.set(w.answer + "|" + w.clue, { word: w.answer, clue: w.clue });
+    }
+  }
+  return [...pairs.values()];
+}
+
+const ENTRIES = shippedOnly ? shippedPairs() : DICTIONARY;
 
 // NOTE: no \b anywhere in these patterns. JavaScript's \b is defined over
 // [A-Za-z0-9_], so against Cyrillic it matches in the wrong places and
@@ -69,6 +96,37 @@ const CHECKS = [
     label: "at the length cap - renders as tiny text in a small cell",
     test: (e) => e.clue.length >= 66,
   },
+  // --- gloss shapes: a clue that names the answer's class and then narrows
+  // it is a dictionary definition, not a puzzle clue. "Комаха з жовто-чорним
+  // черевцем і жалом" for ОСА asks for no thought; "Танк савани" for
+  // НОСОРІГ asks for one. This is a candidate list, not a verdict - a gloss
+  // over a word most people don't know ("Велика притока Міссісіпі" for
+  // ОГАЙО) is a legitimate knowledge clue. Judgement still needed per row.
+  //
+  // NOTE the boundary: (?![а-яіїєґ]) and NOT \b. See the warning above -
+  // \b never matches after a Cyrillic letter, and using it here made this
+  // whole family of checks silently find nothing on the first attempt.
+  {
+    id: "gloss-periphrasis",
+    label: "\"the one who/that ...\" - a definition wearing a disguise",
+    test: (e) => /^(Той|Та|Те|Ті),?\s+(хто|що|чим|яка|який)/i.test(e.clue),
+  },
+  {
+    id: "gloss-class",
+    label: "opens by naming the answer's category, then narrows it",
+    test: (e) =>
+      new RegExp(
+        "^(Орган|Житло|Дитина|Частина|Прилад|Пристрій|Засіб|Місце|Речовина|Процес|Наука|Особа|Людина|Стан|Здатність|" +
+          "Сукупність|Одиниця|Явище|Різновид|Вид|Група|Набір|Знак|Символ|Період|Проміжок|Відрізок|Комаха|Дерево|" +
+          "Рослина|Тварина|Птах|Риба|Квітка|Метал|Газ|Кислота|Мінерал|Ємність|Місткість|Установа|Футляр|Годівниця)(?![а-яіїєґ])",
+        "i"
+      ).test(e.clue),
+  },
+  {
+    id: "gloss-instrument",
+    label: "\"X для Y\" - names the tool and its purpose, which is the definition",
+    test: (e) => /^\S+\s+для\s+/i.test(e.clue),
+  },
   {
     id: "encyclopedic",
     label: "reads like a dictionary definition rather than a puzzle clue",
@@ -97,14 +155,14 @@ function duplicateClueGroups(dict) {
 }
 
 const flagged = [];
-for (const entry of DICTIONARY) {
+for (const entry of ENTRIES) {
   const reasons = reasonsFor(entry);
   if (reasons.length) flagged.push({ ...entry, reasons });
 }
 
-const dupes = duplicateClueGroups(DICTIONARY);
+const dupes = duplicateClueGroups(ENTRIES);
 
-console.log(`Dictionary: ${DICTIONARY.length} entries\n`);
+console.log(shippedOnly ? `Shipped in levels: ${ENTRIES.length} clue/answer pairs\n` : `Dictionary: ${ENTRIES.length} entries\n`);
 console.log("Flagged by check:");
 for (const c of CHECKS) {
   if (only && c.id !== only) continue;
