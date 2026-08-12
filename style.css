@@ -384,6 +384,12 @@ h1 { font-weight: 700; font-size: 27px; letter-spacing: -0.01em; margin: 0 0 8px
      so a long word would spill outside the cell instead of wrapping. */
   min-width: 0;
   line-height: 1.08;
+  /* Let a browser that has a Ukrainian hyphenation dictionary insert a
+     real hyphen at the break, the way a printed scanword does. Where there
+     is no dictionary the word still breaks, just without the hyphen -
+     which is the behaviour we had, so this can only improve things. */
+  hyphens: auto;
+  -webkit-hyphens: auto;
   /* overflow-wrap (not word-break) so a word is split only when it can't
      fit a line on its own - otherwise fitClueText shrinks the font and
      the text wraps at spaces, the way it reads naturally. */

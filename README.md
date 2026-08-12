@@ -109,6 +109,18 @@ more than what the clock says. `updateSolveProgress()` counts words
 progress, and counting it would make the bar a measure of typing rather
 than solving.
 
+**A long word breaks rather than shrinking the clue.** `fitClueText` used
+to try whole words across the *entire* size range before allowing any
+break, so one long word like "Місісіпі" drove the whole clue down to 4px -
+unreadable, in order to keep a single word intact. Now readability wins:
+whole words are preferred only down to `readableMinPx`, below which the
+word is broken instead, and only a clue that still won't fit shrinks
+further. Print scanwords hyphenate constantly for exactly this reason. The
+measured floor across all 100 levels went from 4px to 6-7px with nothing
+clipped. `hyphens: auto` lets a browser with a Ukrainian dictionary insert
+a real hyphen at the break; where there is none the word still breaks,
+just without it.
+
 **The clue bar is the readable copy.** In-grid clue text is capped by the
 cell no matter how the grid is sized - a 33-character clue in a 44px cell
 still only gets ~9px. The bar above the grid shows the clue for the word
@@ -487,6 +499,13 @@ don't know is a legitimate knowledge clue - "Велика притока Міс�
 asks nothing. Length is not the signal either: "Танк савани" for НОСОРІГ is
 short and good, "Орган зору" for ОКО is short and free. The distinction is
 definition versus inference, and it needs a human per row.
+
+`too-many-words` enforces the house style: **7 words maximum**. A scanword
+clue is a label, not a sentence - and short clues render larger, since the
+cell is the constraint, so this is a legibility rule as much as an
+editorial one. Shipped clues currently run a median of 5 words with only
+37 (4%) over the limit, so length is a much smaller problem than the
+glosses.
 
 As of writing, 140 of the 1,012 shipped pairs are flagged.
 

@@ -650,7 +650,13 @@ function fitClueText() {
   // Start from a size proportional to the cell, so small cells don't
   // begin far too large and burn iterations getting back down.
   const maxPx = Math.max(6, Math.min(11, Math.round(cellSize * 0.17)));
-  const minPx = 4;
+  // The size below which a clue stops being readable and starts being a
+  // grey smudge. Breaking a long word across lines is preferred to going
+  // under this - print scanwords hyphenate constantly ("Марш-бросок" over
+  // two lines) precisely because tiny type is worse than a split word.
+  const readableMinPx = 7;
+  // Absolute floor, for the rare clue that fits at no readable size at all.
+  const minPx = 5;
   gridEl.querySelectorAll(".clue-block").forEach((block) => {
     const text = block.querySelector(".clue-text");
     if (!text) return;
@@ -663,25 +669,35 @@ function fitClueText() {
       text.scrollWidth > text.clientWidth + 0.5 ||
       text.scrollHeight > block.clientHeight + 0.5;
 
-    const shrinkToFit = () => {
+    const shrinkToFit = (floor) => {
       let size = maxPx;
       text.style.fontSize = size + "px";
-      while (size > minPx && clipped()) {
+      while (size > floor && clipped()) {
         size -= 0.5;
         text.style.fontSize = size + "px";
       }
       return !clipped();
     };
 
-    // Prefer wrapping at spaces: try the whole range with words kept
-    // whole first, and only allow mid-word breaks if even the smallest
-    // size can't fit that way. Splitting "фруктовими" across lines is
-    // much harder to read than one step smaller type.
+    // Order matters, and it used to be wrong. The old version tried whole
+    // words across the *entire* size range before allowing any break, so a
+    // single long word like "Місісіпі" drove the whole clue down to 4px
+    // rather than splitting - unreadable, to keep one word intact.
+    //
+    // Now readability wins. Whole words are still preferred, but only down
+    // to a size that can actually be read; below that, the word gets broken
+    // instead. Only if even a broken clue won't fit at a readable size does
+    // anything shrink further.
     text.style.overflowWrap = "normal";
-    if (!shrinkToFit()) {
-      text.style.overflowWrap = "break-word";
-      shrinkToFit();
-    }
+    if (shrinkToFit(readableMinPx)) return;
+
+    // 'anywhere' rather than 'break-word': break-word only splits a word
+    // that wouldn't fit on a line of its own, which still leaves a long
+    // word hogging a line and forcing the size down.
+    text.style.overflowWrap = "anywhere";
+    if (shrinkToFit(readableMinPx)) return;
+
+    shrinkToFit(minPx);
   });
 }
 

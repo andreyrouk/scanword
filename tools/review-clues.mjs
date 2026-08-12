@@ -107,6 +107,14 @@ const CHECKS = [
   // \b never matches after a Cyrillic letter, and using it here made this
   // whole family of checks silently find nothing on the first attempt.
   {
+    // The house style: a scanword clue is a label, not a sentence. Short
+    // clues also render larger, since the cell is the constraint - so this
+    // is a legibility rule as much as an editorial one.
+    id: "too-many-words",
+    label: "over the 7-word house limit - a clue is a label, not a sentence",
+    test: (e) => e.clue.trim().split(/\s+/).length > 7,
+  },
+  {
     id: "gloss-periphrasis",
     label: "\"the one who/that ...\" - a definition wearing a disguise",
     test: (e) => /^(Той|Та|Те|Ті),?\s+(хто|що|чим|яка|який)/i.test(e.clue),
